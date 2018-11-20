@@ -1,0 +1,29 @@
+# Get soil moisture threshold
+
+```{r}
+profile_soilmthreshold_fvar( df )
+```
+
+# Prepare data for training
+
+```{r}
+prepare_trainingdata( df )
+```
+
+# Train models and predict `fvar`
+
+```{r}
+train_predict_fvar( df, threshold=... )
+```
+
+# Identify soil moisture droughts
+
+```{r}
+get_droughts_fvar( df )
+```
+
+# Align data by droughts
+
+```{r}
+align_by_event( df, "is_drought_byvar" )
+```

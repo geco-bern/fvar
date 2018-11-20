@@ -1,37 +1,9 @@
-#' Trains models for potential and actual fluxes. 
-#' 
-#' @param df A data frame containing observational data for all the predictors and training variables with all NAs removed.
-#' @param varnam_target A character string defining which variable (column name in \code{df}) is to be used as target variable.
-#' 
-get_fvar <- function( df, varnam_target, varnams_soilm, nhidden_good, nhidden_all, soilm_threshold ){
-
-	##------------------------------------------------
-	## Determine "good days", i.e. where soil moisture is abover threshold
-	##------------------------------------------------
-	if ( length(varnams_soilm)>1 ){
-	  ## for observational data, do subset w.r.t. soil layer with highest value
-	  tmp <- df %>% dplyr::select( vars( one_of(varnams_soilm)) )
-	  tmp[ is.na(tmp) ] <- 0.0
-	  vec <- apply( tmp, 1, FUN = max, na.rm=TRUE )
-	} else {
-	  vec <- df_nona[[ isoilm_data ]]
-	}
-
-	idxs_good <- which( vec > isoilm_trh )
-
-
-	return( df_fvar )
-}
-
-
-
-
 #' Prepares data for training
 #' 
 #' @param df A data frame containing observational data for all the predictors and training variables. One variable among predictors has to be soil moisture \code{"soilm"}. 
 #' @param varnam_target A character string defining which variable (column name in \code{df}) is to be used as target variable.
 #' 
-prepare_data <- function( df, varnam_target, varnams_soilm ){
+prepare_trainingdata <- function( df, varnam_target, varnams_soilm ){
 
 	##------------------------------------------------
 	## Remove outliers
