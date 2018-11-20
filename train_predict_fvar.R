@@ -3,15 +3,19 @@
 #' @param df A data frame containing observational data for all the predictors and training variables with all NAs removed.
 #' @param varnam_target A character string defining which variable (column name in \code{df}) is to be used as target variable.
 #' 
-train_predict_fvar <- function( df, varnam_target, varnams_soilm, varnams_predictors, nhidden_good, nhidden_all, soilm_threshold, nrep, weights=NA, package="nnet" ){
+train_predict_fvar <- function( df, varnam_target, varnams_soilm, varnams_predictors, hidden_good, hidden_all, soilm_threshold, nrep, weights=NA, package="nnet", plot=TRUE ){
 
 	##------------------------------------------------
 	## Determine "good days", i.e. where soil moisture is abover threshold.
 	## Get respective indices.
 	##------------------------------------------------
 	## If multiple layer's soil moisture data is available, do subset w.r.t. soil layer with highest value
-	df <- df %>% mutate( soilm_max = apply( dplyr::select( vars( one_of(varnams_soilm)) ), 1, FUN = max, na.rm = TRUE ) )
-	idxs_moist <- which( vec > soilm_threshold )
+	df <- df %>% mutate( maxsoilm = apply( dplyr::select( df, one_of(varnams_soilm) ), 1, FUN = max, na.rm = TRUE ) )
+	idxs_moist <- which( df$maxsoilm > soilm_threshold )
+
+	## save and remove date column (not needed for training)
+	dates <- df$date
+	df <- df %>% dplyr::select( one_of(varnam_target), one_of(varnams_predictors), one_of(varnams_soilm) )
 
 	## If no weights are specified, use 1 for all data points
 	if (is.na(weights)) weights <- rep( 1.0, nrow(df) )
@@ -32,9 +36,9 @@ train_predict_fvar <- function( df, varnam_target, varnams_soilm, varnams_predic
 	    ## Train model on moist days' data, not using soil moisture as predictor ("pot")
 	    ##------------------------------------------------
 	    ## Remove all variables starting with "soilm_" from predictors
-	    varnams_soilm <- df %>% dplyr::select( vars( starts_with("soilm") ) ) %>% names()
-	    varnams_predictors_without_soilm <- varnams_predictors[ -(varnams_predictors %in% varnams_soilm) ]
-
+	    # varnams_soilm <- df %>% dplyr::select( starts_with("soilm") ) %>% names()
+	    varnams_predictors_without_soilm <- varnams_predictors[ !(varnams_predictors %in% varnams_soilm) ]
+	    
 	    out_nn_moist <- predict_nn( 
 	      data       = df[ idxs_moist, ],
 	      weights    = weights[ idxs_moist ],
@@ -47,13 +51,13 @@ train_predict_fvar <- function( df, varnam_target, varnams_soilm, varnams_predic
 	      hidden     = hidden_good
 	      )
 
-	    # ## Evaluate predictions of good days model
-	    # stats_nn_good <- analyse_modobs( 
-	    #                                 apply( var_nn_pot, 1, FUN=mean ) * weights[ idxs_moist ], 
-	    #                                 df$gpp_obs[idxs_moist], 
-	    #                                 plot.title=paste( "Good, trh=", isoilm_trh, "data=", isoilm_data ), 
-	    #                                 do.plot=FALSE
-	    #                                 )
+	    ## Evaluate predictions of good days model
+	    stats_nn_moist <- rsofun::analyse_modobs(
+						                                    out_nn_moist$vals,
+						                                    df[[varnam_target]][idxs_moist],
+						                                    plot.title="NN pot, moist only",
+						                                    do.plot=plot
+						                                    )
 
 	    ##------------------------------------------------
 	    ## Get potential values (fvar_pot) with moist-days model, predicting all days
@@ -69,16 +73,15 @@ train_predict_fvar <- function( df, varnam_target, varnams_soilm, varnams_predic
 	      package    = package
 	      )
 
-	    # ## Evaluate predictions of good days model
-	    # stats_nn_pot <- analyse_modobs( 
-	    #                                 (apply( var_nn_pot, 1,  FUN=mean ) * weights)[-idxs_moist], 
-	    #                                 df$gpp_obs[-idxs_moist], 
-	    #                                 plot.title=paste( "Bad, trh=", isoilm_trh, "data=", isoilm_data ), 
-	    #                                 do.plot=FALSE
-	    #                                 )
+	    ## Evaluate predictions of good days model
+	    stats_nn_pot <- rsofun::analyse_modobs(
+					                                    out_nn_pot$vals,
+					                                    df[[varnam_target]],
+					                                    plot.title="NN pot",
+					                                    do.plot=plot
+					                                    )
 
-	    # print( paste( "R2 of NN-good with soil moisture threshold ", isoilm_trh, "is", stats_nn_good$rsq ) )
-
+	    # print( paste( "R2 of NN pot with (soil moisture threshold =", soilm_threshold, "):", stats_nn_good$rsq ) )
 
 	    ##------------------------------------------------
 	    ## Train full model, including soil moisture as a predictor ("act")
@@ -94,13 +97,13 @@ train_predict_fvar <- function( df, varnam_target, varnams_soilm, varnams_predic
 	      hidden     = hidden_all
 	      )
 
-	    # ## get statistics of mod vs. obs of all-days full model
-	    # stats_nn_act <- analyse_modobs( 
-	    #                                 apply( var_nn_act, 1, FUN=mean ) * weights, 
-	    #                                 df$gpp_obs, 
-	    #                                 plot.title=paste( "All, data=", isoilm_data ), 
-	    #                                 do.plot=FALSE
-	    #                                 )
+	    ## get statistics of mod vs. obs of all-days full model
+	    stats_nn_act <- rsofun::analyse_modobs( 
+					                                    out_nn_act$vals, 
+					                                    df[[varnam_target]],
+					                                    plot.title="NN act", 
+					                                    do.plot=plot
+					                                    )
 
 	    ## keep only values
 	    nn_pot_vals[,irep] <- as.vector( out_nn_pot$vals )
@@ -115,7 +118,6 @@ train_predict_fvar <- function( df, varnam_target, varnams_soilm, varnams_predic
 
 	  # print(paste("too few data points with soil moisture threshold", isoilm))
 	  nn_pot_vals[,] <- NA
-	  nn_vpd_vals[,] <- NA
 	  nn_act_vals[,] <- NA
 	  nn_fxx_vals[,] <- NA
 
@@ -127,28 +129,24 @@ train_predict_fvar <- function( df, varnam_target, varnams_soilm, varnams_predic
 	if (nrep>1){
 
 	  df$var_nn_pot    <- apply( nn_pot_vals[,], 1, FUN = mean )
-	  df$var_nn_vpd    <- apply( nn_vpd_vals[,], 1, FUN = mean )
 	  df$var_nn_act    <- apply( nn_act_vals[,], 1, FUN = mean )
 
 	  df$var_nn_pot_sd <- apply( nn_pot_vals[,], 1, FUN = sd )
-	  df$var_nn_vpd_sd <- apply( nn_vpd_vals[,], 1, FUN = sd )
 	  df$var_nn_act_sd <- apply( nn_act_vals[,], 1, FUN = sd )
 
 	  df$fvar          <- apply( nn_fxx_vals[,], 1, FUN = mean )
 	  df$fvar_sd       <- apply( nn_fxx_vals[,], 1, FUN = sd )
 
-	  df$moist         <- rep( NA, nrow(df) )
+	  df$moist              <- rep( NA, nrow(df) )
 	  df$moist[idxs_moist]  <- TRUE
 	  df$moist[-idxs_moist] <- FALSE
 	
 	} else {
 
 	  df$var_nn_pot    <- nn_pot_vals[,1]
-	  df$var_nn_vpd    <- nn_vpd_vals[,1]
 	  df$var_nn_act    <- nn_act_vals[,1]
 
 	  df$var_nn_pot_sd <- nn_pot_vals[,1]
-	  df$var_nn_vpd_sd <- nn_vpd_vals[,1]
 	  df$var_nn_act_sd <- nn_act_vals[,1]
 
 	  df$fvar          <- nn_fxx_vals[,1]
@@ -160,11 +158,12 @@ train_predict_fvar <- function( df, varnam_target, varnams_soilm, varnams_predic
 	  
 	}
 
-	##------------------------------------------------
 	## Remove outliers
-	##------------------------------------------------
 	df$fvar <- remove_outliers_fXX( df$fvar, coef=3.0 )    
 
+	## Add date column back
+	df <- df %>% mutate( date=dates ) %>% 
+							 dplyr::select( -one_of(varnam_target), -one_of(varnams_predictors), -one_of(varnams_soilm) )
 
 	return( df )
 }
