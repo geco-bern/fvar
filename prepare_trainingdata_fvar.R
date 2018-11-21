@@ -6,14 +6,14 @@
 prepare_trainingdata_fvar <- function( df, settings ){
 
 	##------------------------------------------------
-	## Remove outliers
+	## Remove outliers in target variable
 	##------------------------------------------------
   ## xxx help: this needs to do either or, not both, depending on what is settings$varnam_target!
   ## Don't know if this one here is correct:
   df <- df %>% dplyr::mutate_at( vars(settings$varnam_target), funs( remove_outliers(.) ) ) %>%
 
 	##------------------------------------------------
-	## Get observational soil moisture data (variable availability!)
+	## Get observational soil moisture data (not the same number of layers available for all sites)
 	##------------------------------------------------
 	## normalise to within zero and one
 	  mutate_at( vars( starts_with("SWC_")), funs(norm_to_max(.)) ) %>%
@@ -23,7 +23,7 @@ prepare_trainingdata_fvar <- function( df, settings ){
     # mutate( soilm_mean = ifelse( is.nan(soilm_mean), NA, soilm_mean ) ) %>%
 
   ##------------------------------------------------
-  ## Temperature filter
+  ## Temperature filter (below that, weird things happening)
   ##------------------------------------------------
 	## Use only days where temperature is above 5 degrees
     dplyr::filter( temp > 5.0 ) %>%
@@ -33,7 +33,10 @@ prepare_trainingdata_fvar <- function( df, settings ){
   ##------------------------------------------------
     dplyr::filter_at( settings$varnam_target, all_vars(!is.na(.)) )
   
-  ## use obs soilm data only if of sufficient length
+  ##------------------------------------------------
+  ## Remove soil moisture layers if too many values are missing (>25% of layer with maximum data points)
+  ##------------------------------------------------
+  ## get number of data points per layer
   lengths <- apply( dplyr::select( df, starts_with("SWC_") ), 2, function(x) sum(!is.na(x)) ) %>% t() %>% as_tibble()
   if (ncol(lengths)>0) settings$varnams_soilm <- lengths %>% dplyr::select( -ends_with("QC") ) %>% names()
     
