@@ -8,15 +8,15 @@ prepare_trainingdata_fvar <- function( df, settings ){
 	##------------------------------------------------
 	## Remove outliers in target variable
 	##------------------------------------------------
-  ## xxx help: this needs to do either or, not both, depending on what is settings$varnam_target!
+  ## xxx help: this needs to do either or, not both, depending on what is settings$target!
   ## Don't know if this one here is correct:
-  df <- df %>% dplyr::mutate_at( vars(settings$varnam_target), funs( remove_outliers(.) ) ) %>%
+  df <- df %>% dplyr::mutate_at( vars(settings$target), funs( remove_outliers(.) ) ) %>%
 
 	##------------------------------------------------
 	## Get observational soil moisture data (not the same number of layers available for all sites)
 	##------------------------------------------------
 	## normalise to within zero and one
-	  mutate_at( vars( starts_with("SWC_")), funs(norm_to_max(.)) ) %>%
+	  mutate_at( vars(one_of(settings$varnams_soilm)), funs(norm_to_max(.)) ) %>%
 	
     # ## get mean observational soil moisture across different depths (if available)
     # mutate( soilm_mean = apply( dplyr::select( ., starts_with("SWC_")), 1, FUN = mean, na.rm = TRUE ) ) %>%
@@ -31,14 +31,14 @@ prepare_trainingdata_fvar <- function( df, settings ){
   ##------------------------------------------------
   ## do additional data cleaning, removing NA in target variable, necessary for NN training
   ##------------------------------------------------
-    dplyr::filter_at( settings$varnam_target, all_vars(!is.na(.)) )
+    dplyr::filter_at( settings$target, all_vars(!is.na(.)) )
   
   ##------------------------------------------------
   ## Remove soil moisture layers if too many values are missing (>25% of layer with maximum data points)
   ##------------------------------------------------
   ## get number of data points per layer
-  lengths <- apply( dplyr::select( df, starts_with("SWC_") ), 2, function(x) sum(!is.na(x)) ) %>% t() %>% as_tibble()
-  if (ncol(lengths)>0) settings$varnams_soilm <- lengths %>% dplyr::select( -ends_with("QC") ) %>% names()
+  lengths <- apply( dplyr::select( df, one_of(settings$varnams_soilm), -ends_with("QC") ), 2, function(x) sum(!is.na(x)) ) %>% t() %>% as_tibble()
+  if (ncol(lengths)>0) settings$varnams_soilm <- lengths %>% names()
     
   ## drop layer swc obs data if length of data is less than 75% of legth of maximum
   idx <- 0
@@ -52,7 +52,7 @@ prepare_trainingdata_fvar <- function( df, settings ){
   }
   if ( length(drop_idx)>0 ) { settings$varnams_soilm <- settings$varnams_soilm[-drop_idx] }
   
-  ## remove NAs in observed soil moisture data
+  ## finally actually remove NAs in observed soil moisture data
   df <- df %>% dplyr::filter_at( settings$varnams_soilm, all_vars(!is.na(.)) )
 
   return( df )
