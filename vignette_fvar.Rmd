@@ -10,8 +10,6 @@ source("prepare_trainingdata_fvar.R")
 source("remove_outliers.R")
 source("get_consecutive.R")
 source("add_alpha.R")
-source("get_droughts_fvar.R")
-source("align_events.R")
 ```
 
 
@@ -78,11 +76,19 @@ settings <- list(
 df_train <- prepare_trainingdata_fvar( df, settings )
 ```
 
-
 # Get soil moisture threshold
 
+NOT YET IMPLEMENTED
 ```{r eval=FALSE}
-profile_soilmthreshold_fvar( df_train, settings )
+soilm_threshold_obs <- profile_soilmthreshold_fvar(
+  df_train,
+  settings,
+  hidden_good        = 10, 
+  hidden_all         = 10, 
+  nrep               = 3, 
+  weights            = NA, 
+  package            = "nnet" 
+ )
 ```
 
 # Train models and predict `fvar`
@@ -92,9 +98,9 @@ Train models for one set of soil moisture input data. In this case it's observat
 df_nn_soilm_obs <- train_predict_fvar( 
   df_train,
   settings,
+  soilm_threshold    = 0.6, # hard coded here instead of using output from profile_soilmthreshold_fvar()
   hidden_good        = 10, 
   hidden_all         = 10, 
-  soilm_threshold    = 0.6, 
   nrep               = 3, 
   weights            = NA, 
   package            = "nnet" 
@@ -150,8 +156,8 @@ Plot what we got.
 ```{r}
 with( out_droughts$df_nn, plot(date, fvar_smooth_filled, type="l" ) )
 rect( 
-  out_droughts$df_nn$date[droughts$idx_start], rep( -99, nrow(droughts) ), 
-  out_droughts$df_nn$date[(droughts$idx_start+droughts$len-1)], rep( 99, nrow(droughts) ), 
+  out_droughts$df_nn$date[out_droughts$droughts$idx_start], rep( -99, nrow(out_droughts$droughts) ), 
+  out_droughts$df_nn$date[(out_droughts$droughts$idx_start+out_droughts$droughts$len-1)], rep( 99, nrow(out_droughts$droughts) ), 
   col=rgb(0,0,0,0.2), border=NA )
 ```
 
