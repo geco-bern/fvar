@@ -10,6 +10,8 @@ source("prepare_trainingdata_fvar.R")
 source("remove_outliers.R")
 source("get_consecutive.R")
 source("add_alpha.R")
+source("get_droughts_fvar.R")
+source("align_events.R")
 ```
 
 
