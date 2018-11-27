@@ -10,6 +10,8 @@ source("prepare_trainingdata_fvar.R")
 source("remove_outliers.R")
 source("get_consecutive.R")
 source("add_alpha.R")
+source("align_events.R")
+source("get_droughts_fvar.R")
 ```
 
 
@@ -30,29 +32,35 @@ getvars <- c(
   "SW_IN_F",
   "NETRAD"
   )
+
 df <- get_obs_bysite_fluxnet2015( sitename="AU-How", path_fluxnet2015="./", timescale="d", getvars=getvars )
 
 ## get some mo' (modelled soil moisture)
-load("/alphadata01/bstocker/nn_fluxnet2015/data/modobs_fluxnet2015_s11_s12_s13_with_SWC_v3.Rdata")
-df_wcont_splash  <- fluxnet[[ "AU-How" ]]$ddf$s11 %>% 
-                      as_tibble() %>% 
-                      mutate( date=ymd( paste0( as.character(year), "-01-01") ) + days(doy-1), wcont_splash=wcont )
-df_wcont_splash %>% write_csv( path="inst/ext/df_wcont_splash.csv")
 
-df_wcont_swbm    <- fluxnet[[ "AU-How" ]]$ddf$s12 %>% 
-                      as_tibble() %>% 
-                      mutate( date=ymd( paste0( as.character(year), "-01-01") ) + days(doy-1), wcont_swbm=wcont )
-df_wcont_swbm %>% write_csv( path="inst/ext/df_wcont_swbm.csv")
+# load("/alphadata01/bstocker/nn_fluxnet2015/data/modobs_fluxnet2015_s11_s12_s13_with_SWC_v3.Rdata")
+# df_wcont_splash  <- fluxnet[[ "AU-How" ]]$ddf$s11 %>% 
+#                       as_tibble() %>% 
+#                       mutate( date=ymd( paste0( as.character(year), "-01-01") ) + days(doy-1), wcont_splash=wcont )
+# df_wcont_et_orth %>% write_csv( path = "inst/ext/df_wcont_et_orth.csv")
+df_wcont_et_orth <- read_csv( file = "inst/ext/df_wcont_et_orth.csv")
 
-df_wcont_et      <- fluxnet[[ "AU-How" ]]$ddf$swc_by_etobs %>% 
-                      as_tibble() %>% 
-                      mutate( date=ymd( paste0(as.character(year), "-01-01") ) + months(moy-1) + days(dom-1), wcont_et=soilm_from_et )
-df_wcont_et %>% write_csv( path="inst/ext/df_wcont_et.csv")
+# df_wcont_swbm    <- fluxnet[[ "AU-How" ]]$ddf$s12 %>% 
+#                       as_tibble() %>% 
+#                       mutate( date=ymd( paste0( as.character(year), "-01-01") ) + days(doy-1), wcont_swbm=wcont )
+# df_wcont_et %>% write_csv( path = "inst/ext/df_wcont_et.csv")
+df_wcont_et <- read_csv( file = "inst/ext/df_wcont_et.csv")
 
-df_wcont_et_orth <- fluxnet[[ "AU-How" ]]$ddf$swc_by_etobs %>% 
-                      as_tibble() %>% 
-                      mutate( date=ymd( paste0(as.character(year), "-01-01") ) + months(moy-1) + days(dom-1), wcont_et_orth=soilm_from_et_orthbucket )
-df_wcont_et_orth %>% write_csv( path="inst/ext/df_wcont_et_orth.csv")
+# df_wcont_et      <- fluxnet[[ "AU-How" ]]$ddf$swc_by_etobs %>% 
+#                       as_tibble() %>% 
+#                       mutate( date=ymd( paste0(as.character(year), "-01-01") ) + months(moy-1) + days(dom-1), wcont_et=soilm_from_et )
+# df_wcont_swbm %>% write_csv( path = "inst/ext/df_wcont_swbm.csv")
+df_wcont_swbm <- read_csv( file = "inst/ext/df_wcont_swbm.csv")
+
+# df_wcont_et_orth <- fluxnet[[ "AU-How" ]]$ddf$swc_by_etobs %>% 
+#                       as_tibble() %>% 
+#                       mutate( date=ymd( paste0(as.character(year), "-01-01") ) + months(moy-1) + days(dom-1), wcont_et_orth=soilm_from_et_orthbucket )
+# df_wcont_splash %>% write_csv( path = "inst/ext/df_wcont_splash.csv")
+df_wcont_splash <- read_csv( file = "inst/ext/df_wcont_splash.csv")
 
 ```
 
