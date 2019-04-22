@@ -215,6 +215,16 @@ get_droughts_fvar <- function( df_nn, nam_target, df_soilm=NA, df_par=NA, leng_t
     # stats <- list( out_NNall=out_NNall, out_NNgood=out_NNgood, out_NNgoodall=out_NNgoodall, out_NNallbad=out_NNallbad )
 
   }
+  
+  ##-------------------------------------------------------------------------------
+  ## Complement date object
+  ##-------------------------------------------------------------------------------
+  droughts <- droughts %>%
+    as_tibble() %>% 
+    mutate( date_start = df_nn$date[.$idx_start],
+            date_end   = df_nn$date[.$idx_start+.$len-1] ) %>% 
+    mutate( date_start = ymd(date_start), date_end = ymd(date_end) )
+  
   return( list( droughts=droughts, df_nn=df_nn ) )
 }
 
@@ -258,7 +268,7 @@ prune_droughts <- function(
 
     if (length(idx_drop)>0) instances <- instances[ -idx_drop, ]
 
-    ## keep only droughts longer than 5 days after this trimming
+    ## keep only droughts longer than <leng_threshold> days after this trimming
     instances <- instances[ which( instances$len >= leng_threshold ), ]
 
     print(paste("number of events after trimming:", nrow(instances)))
@@ -294,7 +304,6 @@ prune_droughts <- function(
     idx_drop <- c()
     if (!is.null(mod_act) && !is.null(mod_pot) && !is.null(obs)  && nrow(instances)>0 ){
 
-      require( hydroGOF )
       idx_drop <- c()
 
       for ( idx in 1:nrow(instances) ){
@@ -308,11 +317,9 @@ prune_droughts <- function(
         tmp <- mod_act_sub + mod_pot_sub + obs_sub
         mod_act_sub <- mod_act_sub[ which(!is.na(tmp)) ]
         mod_pot_sub <- mod_pot_sub[ which(!is.na(tmp)) ]
-        obs_sub <- obs_sub[ which(!is.na(tmp)) ]
+        obs_sub     <- obs_sub[ which(!is.na(tmp)) ]
 
         ## get RMSE
-        # rmse_act_sub    <- rmse( obs_sub, mod_act_sub )
-        # rmse_pot    <- rmse( obs_sub, mod_pot_sub )
         rmse_act_sub    <- rmse( mod_act_sub, obs_sub )
         rmse_pot_sub    <- rmse( mod_pot_sub, obs_sub )
 
@@ -389,4 +396,13 @@ prune_droughts <- function(
   out <- list( instances=instances, is_drought_byvar=is_drought_byvar )
   return( out )
 
+}
+
+rmse <- function(mod, obs){
+  tibble(mod=mod, obs=obs) %>%
+    tidyr::drop_na() %>%
+    yardstick::rmse(obs, mod) %>% 
+    select(.estimate) %>%  
+    unlist() %>% 
+    unname()
 }

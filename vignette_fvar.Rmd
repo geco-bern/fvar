@@ -3,6 +3,7 @@ library(rsofun)
 library(dplyr)
 library(readr)
 library(lubridate)
+library(ggplot2)
 source("get_obs_bysite_fluxnet2015.R")
 source("train_predict_fvar.R")
 source("predict_nn.R")
@@ -107,8 +108,8 @@ df_nn_soilm_obs <- train_predict_fvar(
   df_train,
   settings,
   soilm_threshold    = 0.6, # hard coded here instead of using output from profile_soilmthreshold_fvar()
-  hidden_good        = 10, 
-  hidden_all         = 10, 
+  hidden_good        = 10,  # hard coded here instead of using output from profile_soilmthreshold_fvar()
+  hidden_all         = 10,  # hard coded here instead of using output from profile_soilmthreshold_fvar()
   nrep               = 3, 
   weights            = NA, 
   package            = "nnet" 
@@ -162,35 +163,73 @@ out_droughts <- get_droughts_fvar(
 
 Plot what we got.
 ```{r}
-with( out_droughts$df_nn, plot(date, fvar_smooth_filled, type="l" ) )
-rect( 
-  out_droughts$df_nn$date[out_droughts$droughts$idx_start], rep( -99, nrow(out_droughts$droughts) ), 
-  out_droughts$df_nn$date[(out_droughts$droughts$idx_start+out_droughts$droughts$len-1)], rep( 99, nrow(out_droughts$droughts) ), 
-  col=rgb(0,0,0,0.2), border=NA )
+ggplot() +
+  geom_rect(
+    data=out_droughts$droughts, 
+    aes(xmin=date_start, xmax=date_end, ymin=-99, ymax=99), 
+    fill=rgb(0,0,0,0.3), 
+    color=NA) + 
+  geom_line(data=out_droughts$df_nn, aes(date, fvar_smooth_filled)) +
+  coord_cartesian(ylim=c(0, 1))
 ```
 
 # Align data by droughts
 
 ```{r}
-dovars <- c("fvar", "soilm")
+dovars <- c("transp_obs", "fvar", "soilm", "var_nn_pot", "var_nn_act")
 df_nn <- out_droughts$df_nn %>% mutate(site="AU-How")
 df_alg <- align_events( 
   select( df_nn, site, date, one_of(dovars)), 
   select( df_nn, site, date, isevent=is_drought_byvar_recalc ),
   dovars,
-  leng_threshold = 10,
-  before=20,
-  after=79,
-  nbins=10,
   do_norm=FALSE,
-  normbin=2 )
+  leng_threshold=10, 
+  before=20, after=80, nbins=10
+  )
 ```
 
 
 Plot what we got
 ```{r}
-with( df_alg$df_dday_aggbydday, plot(    dday, fvar_median, type="l", ylim=c(0,1.2)) )
-with( df_alg$df_dday_aggbydday, polygon( c(dday, rev(dday)), c(fvar_q33, rev(fvar_q66)), col=rgb(0,0,0,0.2), border = NA ) )
-abline(h=1, lty=3)
-abline(v=0, col='red')
+df_alg$df_dday_agg_inst_site %>% 
+  ggplot(aes(dday, fvar_median)) +
+  geom_ribbon(aes(ymin=fvar_q33, ymax=fvar_q66), fill="grey70") +
+  geom_line() +
+  geom_vline(xintercept=0, linetype="dotted") +
+  ylim(0,1) + 
+  labs(title = "fVAR")
+
+median <- df_alg$df_dday_agg_inst_site %>%
+  select(dday, var_nn_pot=var_nn_pot_median, var_nn_act=var_nn_act_median, transp_obs=transp_obs_median) %>% 
+  tidyr::gather(model, var_nn_median, c(transp_obs, var_nn_pot, var_nn_act))
+
+q33 <- df_alg$df_dday_agg_inst_site %>%
+  select(dday, var_nn_pot=var_nn_pot_q33, var_nn_act=var_nn_act_q33, transp_obs=transp_obs_q33) %>% 
+  tidyr::gather(model, var_nn_q33, c(transp_obs, var_nn_pot, var_nn_act))
+
+q66 <- df_alg$df_dday_agg_inst_site %>%
+  select(dday, var_nn_pot=var_nn_pot_q66, var_nn_act=var_nn_act_q66, transp_obs=transp_obs_q66) %>% 
+  tidyr::gather(model, var_nn_q66, c(transp_obs, var_nn_pot, var_nn_act))
+
+df_tmp <- median %>% 
+  left_join(q33, by=c("dday", "model")) %>% 
+  left_join(q66, by=c("dday", "model"))
+
+df_tmp %>% 
+  ggplot(aes(dday, var_nn_median, color=model)) +
+  geom_line() +
+  geom_ribbon(aes(ymin=var_nn_q33, ymax=var_nn_q66, fill=model), alpha=0.3, color=NA) +
+  geom_vline(xintercept=0, linetype="dotted") +
+  labs(
+    title = "Transpiration", 
+    subtitle = "Observation and models",
+    x="dday", y="Transpiration (XXX)") +
+  scale_color_discrete(
+    name="Model", 
+    breaks=c("transp_obs", "var_nn_act", "var_nn_pot"),
+    labels=c("Observed", expression(NN[act]), expression(NN[pot])) ) +
+  scale_fill_discrete(
+    name="Model", 
+    breaks=c("transp_obs", "var_nn_act", "var_nn_pot"),
+    labels=c("Observed", expression(NN[act]), expression(NN[pot])) )
 ```

@@ -3,10 +3,10 @@
 #' @param df A data frame containing observational data for all the predictors and training variables with all NAs removed.
 #' @param target A character string defining which variable (column name in \code{df}) is to be used as target variable.
 #' 
-train_predict_fvar <- function( df, target, varnams_soilm, predictors, hidden_good, hidden_all, soilm_threshold, nrep, weights=NA, package="nnet", plot=FALSE ){
+train_predict_fvar <- function( df, target, hidden_good, hidden_all, soilm_threshold, nrep, weights=NA, package="nnet", plot=FALSE ){
 
 	##------------------------------------------------
-	## Determine "good days", i.e. where soil moisture is abover threshold.
+	## Determine "moist days", i.e. where soil moisture is abover threshold.
 	## Get respective indices.
 	##------------------------------------------------
 	## If multiple layer's soil moisture data is available, do subset w.r.t. soil layer with highest value
@@ -33,7 +33,7 @@ train_predict_fvar <- function( df, target, varnams_soilm, predictors, hidden_go
 
 	    print(paste("NN repetition", irep))
 	    ##------------------------------------------------
-	    ## Train model on moist days' data, not using soil moisture as predictor ("pot")
+	    ## Train model on moist days' data, not using soil moisture as predictor ("_moist")
 	    ##------------------------------------------------
 	    ## Remove all variables starting with "soilm_" from predictors
 	    # settings$varnams_soilm <- df %>% dplyr::select( starts_with("soilm") ) %>% names()
@@ -53,12 +53,12 @@ train_predict_fvar <- function( df, target, varnams_soilm, predictors, hidden_go
 
 	    ## Evaluate predictions of good days model
 	    stats_nn_moist <- rsofun::analyse_modobs(
-						                                    out_nn_moist$vals,
-						                                    df[[settings$target]][idxs_moist],
-						                                    plot.title="NN pot, moist only",
-						                                    do.plot=plot
-						                                    )
-
+	      out_nn_moist$vals,
+	      df[[settings$target]][idxs_moist],
+	      plot.title="NN pot, moist only",
+	      do.plot=plot
+	      )
+	    
 	    ##------------------------------------------------
 	    ## Get potential values (fvar_pot) with moist-days model, predicting all days
 	    ##------------------------------------------------
@@ -73,14 +73,14 @@ train_predict_fvar <- function( df, target, varnams_soilm, predictors, hidden_go
 	      package    = package
 	      )
 
-	    ## Evaluate predictions of good days model
+	    ## Evaluate predictions of moist days model
 	    stats_nn_pot <- rsofun::analyse_modobs(
-					                                    out_nn_pot$vals,
-					                                    df[[settings$target]],
-					                                    plot.title="NN pot",
-					                                    do.plot=plot
-					                                    )
-
+	      out_nn_pot$vals,
+	      df[[settings$target]],
+	      plot.title="NN pot",
+	      do.plot=plot
+  	    )
+	    
 	    # print( paste( "R2 of NN pot with (soil moisture threshold =", soilm_threshold, "):", stats_nn_good$rsq ) )
 
 	    ##------------------------------------------------
@@ -99,12 +99,12 @@ train_predict_fvar <- function( df, target, varnams_soilm, predictors, hidden_go
 
 	    ## get statistics of mod vs. obs of all-days full model
 	    stats_nn_act <- rsofun::analyse_modobs( 
-					                                    out_nn_act$vals, 
-					                                    df[[settings$target]],
-					                                    plot.title="NN act", 
-					                                    do.plot=plot
-					                                    )
-
+	      out_nn_act$vals, 
+	      df[[settings$target]],
+	      plot.title="NN act", 
+	      do.plot=plot
+	      )
+	    
 	    ## keep only values
 	    nn_pot_vals[,irep] <- as.vector( out_nn_pot$vals )
 	    nn_act_vals[,irep] <- as.vector( out_nn_act$vals )
@@ -145,8 +145,8 @@ train_predict_fvar <- function( df, target, varnams_soilm, predictors, hidden_go
 	  df$fvar          <- nn_fxx_vals[,1]
 
 	  df$moist         <- rep( NA, nrow(df) )
-	  df$moist[idxs_moist]      <- TRUE
-	  df$moist[-idxs_moist]     <- FALSE
+	  df$moist[idxs_moist]  <- TRUE
+	  df$moist[-idxs_moist] <- FALSE
 	  
 	}
 
@@ -154,8 +154,9 @@ train_predict_fvar <- function( df, target, varnams_soilm, predictors, hidden_go
 	df$fvar <- remove_outliers_fXX( df$fvar, coef=3.0 )    
 
 	## Add date column back
-	df <- df %>% mutate( date=dates ) %>% 
-							 dplyr::select( -one_of(settings$target), -one_of(settings$predictors), -one_of(settings$varnams_soilm) )
+	df <- df %>% 
+	  mutate( date=dates ) %>% 
+		dplyr::select( -one_of(settings$target), -one_of(settings$predictors), -one_of(settings$varnams_soilm) )
 
 	return( df )
 }

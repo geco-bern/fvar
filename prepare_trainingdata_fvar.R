@@ -1,5 +1,7 @@
 #' Prepares data for training
 #' 
+#' Removes NAs and outliers.
+#' 
 #' @param df A data frame containing observational data for all the predictors and training variables. One variable among predictors has to be soil moisture \code{"soilm"}. 
 #' @param settings A list
 #' 
@@ -16,7 +18,7 @@ prepare_trainingdata_fvar <- function( df, settings ){
 	## Get observational soil moisture data (not the same number of layers available for all sites)
 	##------------------------------------------------
 	## normalise to within zero and one
-	  mutate_at( vars(one_of(settings$varnams_soilm)), funs(norm_to_max(.)) ) %>%
+	  mutate_at( vars(one_of(settings$varnams_soilm)), list(~norm_to_max(.)) ) %>%
 	
     # ## get mean observational soil moisture across different depths (if available)
     # mutate( soilm_mean = apply( dplyr::select( ., starts_with("SWC_")), 1, FUN = mean, na.rm = TRUE ) ) %>%

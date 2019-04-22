@@ -22,10 +22,10 @@ predict_nn <- function( data, predictors, nam_target, weights=NULL, nn=NULL, thr
       # print("--------")
 
       ## this has caused a problem before due to values being too hight -> weird
-      if (nam_target=="le_f_mds"|| nam_target=="et_obs"){ data[[ nam_target ]] <- data[[ nam_target ]] * 1e-6 }
+      if (mean(data[[ nam_target ]])>1e6){ data[[ nam_target ]] <- data[[ nam_target ]] * 1e-6 }
 
-      preprocessParams <- preProcess( data, method=c("range") )
-      traincotrlParams <- trainControl( method="repeatedcv", number=5, repeats=5, verboseIter=FALSE, p=0.75 ) # take best of 10 repetitions of training with 75% used for training (25% for testing)
+      preprocessParams <- caret::preProcess( data, method=c("range") )
+      traincotrlParams <- caret::trainControl( method="repeatedcv", number=5, repeats=5, verboseIter=FALSE, p=0.75 ) # take best of 10 repetitions of training with 75% used for training (25% for testing)
       # traincotrlParams <- trainControl( method="cv", number=10, verboseIter=FALSE ) # 5-fold cross-validation
 
       if (is.null(hidden)){
@@ -35,17 +35,17 @@ predict_nn <- function( data, predictors, nam_target, weights=NULL, nn=NULL, thr
       }
 
       set.seed(seed)
-      nn <- train(
-                  forml,
-                  data      = data, #training,
-                  weights   = weights,
-                  method    = "nnet",
-                  linout    = TRUE,
-                  tuneGrid  = tune_grid,
-                  preProc   = "range", # preProc  = preprocessParams
-                  trControl = traincotrlParams,
-                  trace     = FALSE
-                  )
+      nn <- caret::train(
+        forml,
+        data      = data, #training,
+        weights   = weights,
+        method    = "nnet",
+        linout    = TRUE,
+        tuneGrid  = tune_grid,
+        preProc   = "range", # preProc  = preprocessParams
+        trControl = traincotrlParams,
+        trace     = FALSE
+      )
       # pdf("fig_nn_fluxnet2015/caret_profile.pdf")
       # plot( nn )
       # dev.off()
