@@ -18,7 +18,7 @@ source("get_droughts_fvar.R")
 
 # Get FLUXNET 2015 data
 
-Read observational data including soil moisture for one site (`"AU-How"`) from a FLUXNET 2015 data file (standard).
+Read observational data including soil moisture for one site (`"AU-How"`) from a FLUXNET 2015 data file (standard). In the present example
 ```{r}
 getvars <- c( 
   "GPP_NT_VUT_REF", 
@@ -130,10 +130,20 @@ df_nn_soilm_swbm <- train_predict_fvar(
   hidden_all         = 10, 
   soilm_threshold    = 0.6, 
   nrep               = 3, 
-  weights            = NA, 
+  weights            = NA,
   package            = "nnet" 
   )
 ```
+
+# Test performance of NN models
+
+```{r}
+df_nn_soilm_obs <- df_nn_soilm_obs %>% 
+  left_join(select(df_train, date, settings$target), by="date")
+
+analyse_modobs2(df_nn_soilm_obs, "var_nn_act", "transp_obs")
+```
+
 
 # Identify soil moisture droughts
 

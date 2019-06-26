@@ -1,17 +1,20 @@
 #' Trains models for potential and actual fluxes. 
 #' 
 #' @param df A data frame containing observational data for all the predictors and training variables with all NAs removed.
-#' @param target A character string defining which variable (column name in \code{df}) is to be used as target variable.
+#' @param settings A character string defining which variable (column name in \code{df}) is to be used as target variable.
 #' 
-train_predict_fvar <- function( df, target, hidden_good, hidden_all, soilm_threshold, nrep, weights=NA, package="nnet", plot=FALSE ){
+train_predict_fvar <- function( df, settings, soilm_threshold, hidden_good, hidden_all, nrep, weights=NA, package="nnet", plot=FALSE ){
 
 	##------------------------------------------------
 	## Determine "moist days", i.e. where soil moisture is abover threshold.
 	## Get respective indices.
 	##------------------------------------------------
 	## If multiple layer's soil moisture data is available, do subset w.r.t. soil layer with highest value
-	df <- df %>% mutate( maxsoilm = apply( dplyr::select( df, one_of(settings$varnams_soilm) ), 1, FUN = max, na.rm = TRUE ) )
-	idxs_moist <- which( df$maxsoilm > soilm_threshold )
+	# df <- df %>% mutate( maxsoilm = apply( dplyr::select( df, one_of(settings$varnams_soilm) ), 1, FUN = max, na.rm = TRUE ) )
+	# idxs_moist <- which( df$maxsoilm > soilm_threshold )
+  
+  ## simple
+  idxs_moist <- which( df[[settings$varnams_soilm]] > soilm_threshold )
 
 	## save and remove date column (not needed for training)
 	dates <- df$date

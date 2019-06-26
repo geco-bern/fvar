@@ -1,0 +1,192 @@
+---
+title: "fvar with soil respiration data"
+author: "Beni Stocker"
+date: "4/30/2019"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+library(rbeni)
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(lubridate)
+library(tidyr)
+
+source("get_obs_bysite_fluxnet2015.R")
+source("train_predict_fvar.R")
+source("predict_nn.R")
+source("prepare_trainingdata_fvar.R")
+source("remove_outliers.R")
+source("get_consecutive.R")
+source("add_alpha.R")
+source("align_events.R")
+source("get_droughts_fvar.R")
+```
+
+## Load data
+
+```{r}
+hdf <- read_csv("/alphadata01/bstocker/data/resp_soil_avni/moflux2015_senttoBeni_bs.csv") %>% 
+  
+  ## get clean date
+  # slice(1:100) %>% 
+  # dplyr::select(1:13) %>% 
+  rowwise() %>% 
+  mutate(date = ymd_hm(paste0(as.character(Year), "-01-01 00:00")) + days( DOY - 1 ) + minutes( HourMin ) )
+save(hdf, file = "./data/hdf.Rdata")
+```
+
+Gather data from multiple chambers (assuming they sample the same system).
+```{r}
+hdf_g_co2flux <- hdf %>% 
+  select(date, ends_with("co2flux")) %>% 
+  tidyr::gather(chamber, co2flux, ends_with("co2flux")) %>% 
+  mutate(chamber = str_remove(chamber, "co2flux"))
+
+hdf_g_soilm <- hdf %>% 
+  select(date, ends_with("soilm")) %>% 
+  tidyr::gather(chamber, soilm, ends_with("soilm")) %>% 
+  mutate(chamber = str_remove(chamber, "soilm"))
+
+hdf_g_soilt <- hdf %>% 
+  select(date, ends_with("soilt")) %>% 
+  tidyr::gather(chamber, soilt, ends_with("soilt")) %>% 
+  mutate(chamber = str_remove(chamber, "soilt"))
+
+hdf_g <- hdf_g_co2flux %>% 
+  left_join(hdf_g_soilm, by = c("date", "chamber")) %>% 
+  left_join(hdf_g_soilt, by = c("date", "chamber")) %>% 
+  left_join(select(hdf, date, ORNL72NEECO2), by = "date")
+```
+
+Fig GAM 
+```{r}
+library(mgcv)
+library(mgcViz)
+
+mod_gam <- gam( co2flux ~ s(soilt) + s(soilm), data = hdf_g, method = "REML" )
+mod_gam <- getViz(mod_gam)
+
+gg_soilt <- plot( sm(mod_gam, 1) )
+print(gg_soilt)
+
+gg_soilm <- plot( sm(mod_gam, 2) )
+print(gg_soilm)
+
+gg_soilt + 
+  l_fitLine(colour = "red") + 
+  # l_rug(mapping = aes(x=x, y=y), alpha = 0.8) +
+  l_ciLine(mul = 5, colour = "red", linetype = 2) + 
+  l_points(shape = 19, size = 1, alpha = 0.1) + 
+  theme_classic() +
+  xlim(0, 0.5) +
+  stat_smooth(method = "lm", col = "blue") +
+  labs(x = "soilt", y = "co2flux")
+
+gg_soilm + 
+  l_fitLine(colour = "red") + 
+  # l_rug(mapping = aes(x=x, y=y), alpha = 0.8) +
+  l_ciLine(mul = 5, colour = "red", linetype = 2) + 
+  l_points(shape = 19, size = 1, alpha = 0.1) + 
+  theme_classic() +
+  xlim(0, 0.5) +
+  stat_smooth(method = "lm", col = "blue") +
+  labs(x = "soilm", y = "co2flux")
+```
+
+
+# Prepare data for training
+
+Prepare training data, removing NAs and outliers.
+```{r}
+## use all observational soil moisture data
+varnams_soilm <- hdf_g %>% 
+  dplyr::select( ends_with("soilm") ) %>% 
+  names()
+
+## define the target variable and predictors
+settings <- list( 
+  target        = "co2flux", 
+  predictors    = c("soilm", "soilt", "ORNL72NEECO2"), 
+  varnams_soilm = varnams_soilm 
+  )
+
+df_train <- hdf_g %>% 
+  dplyr::mutate_at( vars(settings$target), funs( remove_outliers(.) ) ) %>% 
+  dplyr::filter( soilt > 5.0 ) %>%
+  dplyr::filter( yday(date) > 90 ) %>% 
+  tidyr::drop_na()
+```
+
+# some plotting
+
+```{r}
+df_train %>% 
+  ggplot() +
+  geom_line(aes(x = date, y = co2flux, color = chamber))
+
+df_train %>% 
+  ggplot() +
+  geom_point(aes(x = date, y = soilm, color = chamber))
+
+df_train %>% 
+  ggplot() +
+  geom_histogram(aes(soilm))
+```
+
+# Set a soil moisture threshold
+
+To be done properly ... later.
+```{r}
+soilm_threshold <- 0.3
+```
+
+# Train models and predict `fvar`
+
+Train models for one set of soil moisture input data. In this case it's observational data.
+```{r}
+df_nn_soilm_obs <- train_predict_fvar( 
+  df_train,
+  settings,
+  soilm_threshold    = soilm_threshold, # hard coded here instead of using output from profile_soilmthreshold_fvar()
+  hidden_good        = 10,   # hard coded here instead of using output from profile_soilmthreshold_fvar()
+  hidden_all         = 10,   # hard coded here instead of using output from profile_soilmthreshold_fvar()
+  nrep               = 1, 
+  weights            = NA, 
+  package            = "nnet" 
+  )
+```
+
+# Test performance of NN models
+
+```{r}
+df_modobs <- df_nn_soilm_obs %>% 
+  left_join(select(df_train, date, settings$target), by="date") %>% 
+  left_join(select(df_train, date, soilm, soilt), by = "date") %>% 
+  mutate( moist = df_nn_soilm_obs$moist )
+
+analyse_modobs2(df_modobs, "var_nn_act", "co2flux")
+analyse_modobs2(df_modobs, "var_nn_pot", "co2flux")
+
+ggplot(df_modobs)+
+  geom_point(aes(x=var_nn_pot, y=co2flux, color=moist))
+```
+
+# Functional relationship
+
+```{r}
+df_modobs %>% 
+  ggplot() +
+  geom_point(aes(x = soilm, y = fvar))
+
+df_modobs %>% 
+  ggplot() +
+  geom_point(aes(x = soilt, y = fvar))
+```
+
+
