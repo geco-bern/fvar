@@ -166,15 +166,16 @@ df_nn_soilm_obs <- train_predict_fvar(
 
 ```{r}
 df_modobs <- df_nn_soilm_obs %>% 
-  left_join(select(df_train, date, settings$target), by="date") %>% 
-  left_join(select(df_train, date, soilm, soilt), by = "date") %>% 
-  mutate( moist = df_nn_soilm_obs$moist )
+  bind_cols(select(df_train, date, soilm, soilt, co2flux))
 
-analyse_modobs2(df_modobs, "var_nn_act", "co2flux")
-analyse_modobs2(df_modobs, "var_nn_pot", "co2flux")
+analyse_modobs2(df_modobs, "var_nn_act", "co2flux", type = "heat")
+#ggsave("fig/modobs_act.pdf")
+
+analyse_modobs2(df_modobs, "var_nn_pot", "co2flux", type = "heat")
 
 ggplot(df_modobs)+
   geom_point(aes(x=var_nn_pot, y=co2flux, color=moist))
+#ggsave("fig/modobs_act_pot.pdf")
 ```
 
 # Functional relationship
