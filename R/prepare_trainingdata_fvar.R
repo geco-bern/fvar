@@ -59,6 +59,10 @@ prepare_trainingdata_fvar <- function( df, settings ){
   
   ## for safety, remove rows with NA again
   df <- df %>% tidyr::drop_na()
+  
+  # ## rename soil moisture column to 'soilm'
+  # df$soilm <- df[ settings$varnams_soilm ]
+  # df <- df[,-which(names(df)==settings$varnams_soilm)]
 
   return( df )
 

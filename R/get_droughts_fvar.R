@@ -22,7 +22,7 @@ get_droughts_fvar <- function( df_nn, nam_target, df_soilm=NA, df_par=NA, leng_t
             xlim=c(0,1.5), 
             col=add_alpha("blue", 0.4), 
             freq=FALSE, 
-            xlab="fLUE", 
+            xlab="fVAR", 
             main="histogram of fvar"
             )
       hist( df_nn$fvar, 

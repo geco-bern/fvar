@@ -1,11 +1,16 @@
-test_performance_fvar <- function(df){
+test_performance_fvar <- function(df, settings){
   
+  ## rename soil moisture column to 'soilm'
+  df$soilm <- df[[ settings$varnams_soilm ]]
+
   ## 1. NNact has no systematic bias related to the level of soil moisture.
   df <- df %>% 
-    mutate(bias_act = nn_act_vals - GPP_NT_VUT_REF,
-           bias_pot = nn_pot_vals - GPP_NT_VUT_REF,
-           soilm_bin = cut(wcont_swbm, 10)
-    ) 
+    mutate(bias_act = nn_act - GPP_NT_VUT_REF,
+           bias_pot = nn_pot - GPP_NT_VUT_REF,
+           soilm_bin = cut(soilm, 10),
+           ratio_act = nn_act / GPP_NT_VUT_REF,
+           ratio_pot = nn_pot / GPP_NT_VUT_REF
+          ) 
   
   gg_boxplot_bias_vs_soilm <- df %>% 
     tidyr::pivot_longer(cols = c(bias_act, bias_pot), names_to = "source", values_to = "bias") %>% 
@@ -15,17 +20,17 @@ test_performance_fvar <- function(df){
     labs(title = "Bias vs. soil moisture")
   
   ## test wether slope is significantly different from zero (0 is within slope estimate +/- standard error of slope estimate)
-  linmod <- lm(bias_act ~ wcont_swbm, data = df)
+  linmod <- lm(bias_act ~ soilm, data = df)
   testsum <- summary(linmod)
-  slope_mid <- testsum$coefficients["wcont_swbm","Estimate"]
-  slope_se  <- testsum$coefficients["wcont_swbm","Std. Error"]
+  slope_mid <- testsum$coefficients["soilm","Estimate"]
+  slope_se  <- testsum$coefficients["soilm","Std. Error"]
   passtest_bias_vs_soilm <- ((slope_mid - slope_se) < 0 && (slope_mid + slope_se) > 0)
 
   ## record for output
   df_out <- tibble(slope_bias_vs_soilm_act = slope_mid, passtest_bias_vs_soilm = passtest_bias_vs_soilm)
 
   gg_points_bias_vs_soilm <- df %>% 
-    ggplot(aes(x = wcont_swbm, y = bias_act)) +
+    ggplot(aes(x = soilm, y = bias_act)) +
     geom_point() +
     geom_smooth(method = "lm")
   
@@ -48,7 +53,7 @@ test_performance_fvar <- function(df){
   ## 3. NNpot and NNact have a high R2 and low RMSE during moist days.
   out_modobs_act_pot <- df %>% 
     dplyr::filter(moist) %>% 
-    rbeni::analyse_modobs2("nn_pot_vals", "nn_act_vals", type = "heat")
+    rbeni::analyse_modobs2("nn_pot", "nn_act", type = "heat")
   
   df_out <- df_out %>% 
     mutate(nnpot_vs_nnact_moist_rsq   = out_modobs_act_pot$df_metrics %>% filter(.metric=="rsq")   %>% pull(.estimate),
@@ -56,12 +61,34 @@ test_performance_fvar <- function(df){
            nnpot_vs_nnact_moist_slope = out_modobs_act_pot$df_metrics %>% filter(.metric=="slope") %>% pull(.estimate))
   
   ## 4. Fit of NN$_\text{act}$ vs. observed (target) values.
-  out_modobs <- df_nn_soilm_swbm %>% rbeni::analyse_modobs2("nn_act_vals", "GPP_NT_VUT_REF", type = "heat")
+  out_modobs <- df %>% rbeni::analyse_modobs2("nn_act", "GPP_NT_VUT_REF", type = "heat")
 
   df_out <- df_out %>% 
     mutate(mod_vs_obs_rsq   = out_modobs$df_metrics %>% filter(.metric=="rsq")   %>% pull(.estimate),
            mod_vs_obs_rmse  = out_modobs$df_metrics %>% filter(.metric=="rmse")  %>% pull(.estimate),
            mod_vs_obs_slope = out_modobs$df_metrics %>% filter(.metric=="slope") %>% pull(.estimate))
+  
+  ## Metrics for use as in Stocker et al. (2018)
+  ## 1. Determine the difference in the bias of NNpot between dry and moist days
+  df_ratio_moist <- df %>% 
+    dplyr::filter(moist) %>%
+    summarise(ratio_act = median(ratio_act, na.rm = TRUE), ratio_pot = median(ratio_pot, na.rm = TRUE))
+  
+  df_ratio_dry <- df %>% 
+    dplyr::filter(!moist) %>%
+    summarise(ratio_act = median(ratio_act, na.rm = TRUE), ratio_pot = median(ratio_pot, na.rm = TRUE))
+  
+  ## 2. Determine RMSE of NNpot vs. NNact during moist days
+  rmse_nnpot_nnact_moist <- df %>% 
+    dplyr::filter(moist) %>%
+    yardstick::rmse(nn_act, nn_pot) %>% 
+    pull(.estimate)
+
+  df_out <- df_out %>% 
+    mutate(
+      diff_ratio_dry_moist = df_ratio_dry$ratio_pot - df_ratio_moist$ratio_pot,
+      rmse_nnpot_nnact_moist = rmse_nnpot_nnact_moist
+      )
   
   return(list(df_metrics = df_out, 
               list_gg = list(

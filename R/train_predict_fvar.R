@@ -47,9 +47,9 @@ train_predict_fvar <- function( df, settings, soilm_threshold, weights=NA, plot=
 		dplyr::bind_rows() %>%
 		dplyr::group_by(idx) %>%
 		dplyr::summarize(
-			nn_pot_vals = mean(nn_pot_vals, na.rm = TRUE),
-			nn_act_vals = mean(nn_act_vals, na.rm = TRUE),
-			fvar        = mean(nn_fxx_vals, na.rm = TRUE)
+			nn_pot = mean(nn_pot, na.rm = TRUE),
+			nn_act = mean(nn_act, na.rm = TRUE),
+			fvar        = mean(nn_fxx, na.rm = TRUE)
 			) %>%
 		dplyr::mutate(moist = vec_moist) %>%
 		dplyr::mutate(fvar = remove_outliers_fXX(fvar, coef=3.0 )) %>%

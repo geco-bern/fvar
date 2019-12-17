@@ -77,9 +77,9 @@ train_predict_fvar_byrep <- function( irep, df, idxs_moist, settings, weights=NA
     # )
     
     df_out <- tibble(
-      nn_pot_vals = as.vector(out_nn_pot$vals),
-      nn_act_vals = as.vector(out_nn_act$vals),
-      nn_fxx_vals = as.vector(out_nn_act$vals) / as.vector(out_nn_pot$vals)
+      nn_pot = as.vector(out_nn_pot$vals),
+      nn_act = as.vector(out_nn_act$vals),
+      nn_fxx = as.vector(out_nn_act$vals) / as.vector(out_nn_pot$vals)
     ) %>%
       dplyr::mutate(irep = irep) %>%
       dplyr::mutate(idx = 1:nrow(.))
@@ -89,9 +89,9 @@ train_predict_fvar_byrep <- function( irep, df, idxs_moist, settings, weights=NA
     rlang::warn(paste("Too few data points with soil moisture threshold", isoilm_trh))
     
     df_out <- tibble(
-      nn_pot_vals = NA,
-      nn_act_vals = NA,
-      nn_fxx_vals = NA
+      nn_pot = NA,
+      nn_act = NA,
+      nn_fxx = NA
     ) %>%
       dplyr::mutate(irep = irep) %>%
       dplyr::mutate(idx = 1:nrow(.))

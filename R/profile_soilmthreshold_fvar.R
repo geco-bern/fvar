@@ -8,7 +8,7 @@ profile_soilmthreshold_fvar <- function(df_train,
   thresh_seq <- thresh_seq[-1]
   thresh_seq <- thresh_seq[-length(thresh_seq)]
   
-  df_eval <- purrr::map(
+  list_eval <- purrr::map(
     as.list(thresh_seq),
     ~profile_soilmthreshold_fvar_bythreshold(
       .,
@@ -16,10 +16,10 @@ profile_soilmthreshold_fvar <- function(df_train,
       settings = settings,
       weights = weights
       )
-    ) %>% 
-    bind_rows()
+    )
+  names(list_eval) <- as.character(thresh_seq)
   
-  return(df_eval)
+  return(list_eval)
 }
 
 profile_soilmthreshold_fvar_bythreshold <- function(threshold,
@@ -36,8 +36,7 @@ profile_soilmthreshold_fvar_bythreshold <- function(threshold,
   )
   
   ## Performance evaluation
-  df_eval <- test_performance_fvar(df_nn)$df_metrics %>% 
-    dplyr::mutate(threshold = threshold)
+  list_eval <- test_performance_fvar(df_nn, settings)
   
-  return(df_eval)
+  return(list_eval)
 }
