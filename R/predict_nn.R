@@ -5,6 +5,7 @@ predict_nn <- function( data, predictors, nam_target, weights=NULL, nn=NULL, thr
     require( nnet )
     require( caret )
 
+    downscale <- FALSE
     if (is.null(nn)){
 
       forml  <- as.formula(  paste( nam_target, "~", paste( predictors, collapse=" + " ) ) )
@@ -22,7 +23,10 @@ predict_nn <- function( data, predictors, nam_target, weights=NULL, nn=NULL, thr
       # print("--------")
 
       ## this has caused a problem before due to values being too hight -> weird
-      if (mean(data[[ nam_target ]])>1e6){ data[[ nam_target ]] <- data[[ nam_target ]] * 1e-6 }
+      if (mean(data[[ nam_target ]])>1e6){ 
+        data[[ nam_target ]] <- data[[ nam_target ]] * 1e-6
+        downscale <- TRUE
+      }
 
       preprocessParams <- caret::preProcess( data, method=c("range") )
       traincotrlParams <- caret::trainControl( method="repeatedcv", number=5, repeats=5, verboseIter=FALSE, p=0.75 ) # take best of 10 repetitions of training with 75% used for training (25% for testing)
@@ -44,11 +48,9 @@ predict_nn <- function( data, predictors, nam_target, weights=NULL, nn=NULL, thr
         tuneGrid  = tune_grid,
         preProc   = "range", # preProc  = preprocessParams
         trControl = traincotrlParams,
-        trace     = FALSE
+        trace     = FALSE,
+        na.action = na.omit
       )
-      # pdf("fig_nn_fluxnet2015/caret_profile.pdf")
-      # plot( nn )
-      # dev.off()
 
     }
 
@@ -58,7 +60,7 @@ predict_nn <- function( data, predictors, nam_target, weights=NULL, nn=NULL, thr
       vals <- rep( NA, nrow(data) )
     }
     
-    if (nam_target=="le_f_mds"|| nam_target=="et_obs"){ vals <- vals * 1e6 }
+    if (downscale){ vals <- vals * 1e6 }
 
   } else {
 
