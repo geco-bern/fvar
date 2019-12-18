@@ -21,7 +21,7 @@ train_predict_fvar_byrep <- function( irep, df, idxs_moist, settings, weights=NA
       package    = settings$package,
       lifesign   = "full",
       seed       = irep,
-      hidden     = settings$nneurons_good
+      hidden     = settings$nnodes
     )
     
     # ## Evaluate predictions of good days model
@@ -65,7 +65,7 @@ train_predict_fvar_byrep <- function( irep, df, idxs_moist, settings, weights=NA
       do_predict = TRUE, 
       package    = settings$package,
       seed       = irep,
-      hidden     = settings$nneurons_all
+      hidden     = settings$nnodes
     )
     
     # ## get statistics of mod vs. obs of all-days full model
