@@ -12,10 +12,7 @@ output:
 ```{r}
 devtools::load_all(".")
 library(rsofun)
-library(dplyr)
-library(readr)
-library(lubridate)
-library(ggplot2)
+library(tidyverse)
 ```
 
 ## Usage example
@@ -41,7 +38,7 @@ This named list is used by several functions of the package.
 
 settings <- list( 
   target        = "GPP_NT_VUT_REF", 
-  predictors    = c("temp_day","vpd_day", "ppfd", "fpar"), 
+  predictors    = c("temp_day","vpd_day", "ppfd", "fpar", "swin", "netrad"), 
   varnams_soilm = "wcont_splash",
   nneurons_good = 10,
   nneurons_all  = 10,
