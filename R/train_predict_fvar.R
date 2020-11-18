@@ -57,6 +57,7 @@ train_predict_fvar <- function( df, settings, soilm_threshold, weights=NA, plot=
 	  left_join(
 	    out %>% 
 	      purrr::map_dfr("df_all") %>% 
+	      dplyr::filter(irep == 1) %>% 
 	      dplyr::select(1, idx),
 	    by = "idx"
 	  ) %>% 
@@ -102,7 +103,7 @@ train_predict_fvar_byrep <- function( irep, df, idxs_moist, settings, weights=NA
       package    = settings$package,
       lifesign   = "full",
       seed       = irep,
-      hidden     = settings$nnodes
+      hidden     = settings$nnodes_pot
     )
     
     # ## Evaluate predictions of good days model
@@ -146,7 +147,7 @@ train_predict_fvar_byrep <- function( irep, df, idxs_moist, settings, weights=NA
       do_predict = TRUE, 
       package    = settings$package,
       seed       = irep,
-      hidden     = settings$nnodes
+      hidden     = settings$nnedoes_act
     )
     
     # ## get statistics of mod vs. obs of all-days full model

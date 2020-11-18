@@ -34,8 +34,8 @@ predict_nn <- function( data, predictors, nam_target, weights=NULL, nn=NULL, do_
         )
       
       if (is.null(hidden)){
-        # tune_grid <- expand.grid( .decay = c(0.05, 0.01, 0.005), .size = seq(5,30,5) )
-        tune_grid <- expand.grid( .decay = c(0.01), .size = 14 )
+        tune_grid <- expand.grid( .decay = c(0.05, 0.01, 0.005), .size = seq(5,30,5) )
+        # tune_grid <- expand.grid( .decay = c(0.01), .size = 14 )
       } else {
         tune_grid <- expand.grid( .decay = c(0.01), .size = c(hidden) )
       }
