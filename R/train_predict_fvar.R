@@ -21,16 +21,13 @@ train_predict_fvar <- function( df, settings, soilm_threshold, weights=NA, plot=
   vec_moist[idxs_moist]  <- TRUE
   vec_moist[-idxs_moist] <- FALSE
 
-	df <- df %>% 
-	  dplyr::select( one_of(settings$target), one_of(settings$predictors), one_of(settings$varnams_soilm) )
-
 	## If no weights are specified, use 1 for all data points
 	if (is.na(weights)) weights <- rep( 1.0, nrow(df) )
 
 	##------------------------------------------------
 	## Loop and aggregate over repetitions
 	##------------------------------------------------
-	df <- purrr::map(
+	out <- purrr::map(
 		as.list(seq(settings$nrep)),
 		~train_predict_fvar_byrep( 
 			., 
@@ -41,8 +38,12 @@ train_predict_fvar <- function( df, settings, soilm_threshold, weights=NA, plot=
 			plot = FALSE,
 			verbose = verbose 
 			)
-		)	%>%
-		dplyr::bind_rows() %>%
+		)
+	
+	names(out) <- paste0("rep", seq(settings$nrep))
+	
+	df_all <- out %>% 
+	  purrr::map_dfr("df_all") %>% 
 		dplyr::group_by(idx) %>%
 		dplyr::summarize(
 			nn_pot = mean(nn_pot, na.rm = TRUE),
@@ -50,10 +51,32 @@ train_predict_fvar <- function( df, settings, soilm_threshold, weights=NA, plot=
 			fvar   = mean(nn_fxx, na.rm = TRUE)
 			) %>%
 		dplyr::mutate(moist = vec_moist) %>%
-		dplyr::mutate(fvar = remove_outliers_fXX(fvar, coef=3.0 )) %>%
-		dplyr::bind_rows(df)
+		dplyr::mutate(fvar = remove_outliers_fXX(fvar, coef=3.0 )) %>% 
+	  
+	  ## re-append row ID (is first column)
+	  left_join(
+	    out %>% 
+	      purrr::map_dfr("df_all") %>% 
+	      dplyr::select(1, idx),
+	    by = "idx"
+	  ) %>% 
+	  
+	  ## complement with target variable and threshold variable (soil moisture)
+	  mutate(obs = df[[ settings$target ]],
+	         soilm = df[[ settings$varnams_soilm ]])
+	
+	df_cv <- out %>% 
+	  purrr::map_dfr("df_cv") %>% 
+	  dplyr::group_by(idx) %>%
+	  dplyr::summarize(
+	    nn_pot = mean(pred_pot, na.rm = TRUE),
+	    nn_act = mean(pred_act, na.rm = TRUE),
+	    obs    = mean(obs)
+	  ) %>%
+	  dplyr::mutate(moist = vec_moist)
 
-	return( df )
+	## return only models from first repetitions
+	return( list(nn_act = out$rep1$nn_act, nn_pot = out$rep1$nn_moist, df_all = df_all, df_cv = df_cv) )
 }
 
 train_predict_fvar_byrep <- function( irep, df, idxs_moist, settings, weights=NA, plot=FALSE, verbose ){
@@ -79,7 +102,7 @@ train_predict_fvar_byrep <- function( irep, df, idxs_moist, settings, weights=NA
       package    = settings$package,
       lifesign   = "full",
       seed       = irep,
-      hidden     = NULL # settings$nnodes
+      hidden     = settings$nnodes
     )
     
     # ## Evaluate predictions of good days model
@@ -123,7 +146,7 @@ train_predict_fvar_byrep <- function( irep, df, idxs_moist, settings, weights=NA
       do_predict = TRUE, 
       package    = settings$package,
       seed       = irep,
-      hidden     = NULL # settings$nnodes
+      hidden     = settings$nnodes
     )
     
     # ## get statistics of mod vs. obs of all-days full model
@@ -133,31 +156,69 @@ train_predict_fvar_byrep <- function( irep, df, idxs_moist, settings, weights=NA
     #   plot.title = "NN act", 
     #   do.plot    = plot
     # )
+
+    ##------------------------------------------------
+    ## Construct data frame from validation results
+    ##------------------------------------------------
+    df_cv_act <- out_nn_act$df_cv %>% 
+      setNames(paste0(names(.), "_act")) %>% 
+      left_join(df %>% 
+                  dplyr::select(settings$rowid) %>% 
+                  mutate(idx_act = 1:n()),
+                by = "idx_act")
+
+    df_cv_pot <- out_nn_moist$df_cv %>%
+      setNames(paste0(names(.), "_pot")) %>% 
+      left_join(df[ idxs_moist, ] %>% 
+                  dplyr::select(settings$rowid) %>% 
+                  mutate(idx_pot = 1:n()),
+                by = "idx_pot")
     
-    df_out <- tibble(
-      nn_pot_cv = as.vector(out_nn_pot$vals_cv),  # for validation
-      nn_act_cv = as.vector(out_nn_act$vals_cv),  # for validation
-      nn_pot = as.vector(out_nn_pot$vals),
-      nn_act = as.vector(out_nn_act$vals),
-      nn_fxx = as.vector(out_nn_act$vals) / as.vector(out_nn_pot$vals)
-      ) %>%
-      dplyr::mutate(irep = irep) %>%
-      dplyr::mutate(idx = 1:nrow(.))
+    df_cv <- df_cv_act %>% 
+      left_join(df_cv_pot, by = settings$rowid) %>% 
+      dplyr::select(settings$rowid, obs = obs_act, pred_act, pred_pot) %>% 
+      mutate(idx = 1:n())
+    
+    df_cv$moist <- rep(FALSE, nrow(df_cv))
+    df_cv$moist[idxs_moist] <- TRUE
+    
+    out_nn_act$df_cv <- NULL
+    out_nn_moist$df_cv <- NULL
+        
+    ##------------------------------------------------
+    ## Construct predictions data frame with all
+    ##------------------------------------------------
+    df_all <- tibble(
+      rowid  = df[[ settings$rowid ]],
+      nn_pot = as.vector(out_nn_pot$df_all$pred),
+      nn_act = as.vector(out_nn_act$df_all$pred),
+      nn_fxx = as.vector(out_nn_act$df_all$pred) / as.vector(out_nn_pot$df_all$pred),
+      irep   = irep
+      ) %>% 
+      mutate(idx = 1:n())
+    
+    ## rename row ID
+    df_all <- df_all %>% setNames(c(settings$rowid, names(.)[-1]))
     
   } else {
     
     rlang::warn("Too few data points with current soil moisture threshold")
     
-    df_out <- tibble(
+    df_all <- tibble(
+      rowid  = df[[ settings$rowid ]],
       nn_pot = NA,
       nn_act = NA,
-      nn_fxx = NA) %>%
-      dplyr::mutate(irep = irep) %>%
-      dplyr::mutate(idx = 1:nrow(.))
+      nn_fxx = NA,
+      irep   = irep
+      ) %>% 
+      mutate(idx = 1:n())
+    
+    ## rename row ID
+    df_all <- df_all %>% setNames(c(settings$rowid, names(.)[-1]))
     
   }
   
-  return(df_out)	
+  return(list(df_all = df_all, df_cv = df_cv, nn_act = out_nn_act, nn_moist = out_nn_moist))	
   
 }
 

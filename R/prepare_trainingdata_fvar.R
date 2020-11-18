@@ -61,7 +61,7 @@ prepare_trainingdata_fvar <- function( df, settings ){
     dplyr::filter_at( settings$varnams_soilm, all_vars(!is.na(.)) ) %>% 
     
     ## retain only target and predictors
-    dplyr::select(one_of(settings$predictors), one_of(settings$varnams_soilm), one_of(settings$target)) %>% 
+    dplyr::select(settings$rowid, one_of(settings$predictors), one_of(settings$varnams_soilm), one_of(settings$target)) %>% 
     
     ## remove rows with NA values
     drop_na()  

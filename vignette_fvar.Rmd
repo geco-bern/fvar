@@ -40,9 +40,10 @@ settings <- list(
   target        = "GPP_NT_VUT_REF", 
   predictors    = c("temp_day","vpd_day", "ppfd", "fpar", "swin", "netrad"), 
   varnams_soilm = "wcont_splash",
-  nneurons_good = 10,
-  nneurons_all  = 10,
-  nrep          = 3,
+  rowid         = "date",
+  nneurons_good = NULL,
+  nneurons_all  = NULL,
+  nrep          = 1,
   package       = "nnet"
   )
 ```
@@ -55,7 +56,7 @@ The settings are a named list that must contain the following variables:
 - `nnodes`        : Number of hidden nodes of the NN.
 - `nrep`          : Number of repetitions of NN model training. `fvar` is calculated as a mean across repetitions.
 - `package`       : R package name that implements the NN (for now, use `"nnet"`, which is used in combination with `caret`)
-
+- `rowid`         : Column name for uniquely identifying data points (rows)
 
 ## Prepare data
 
@@ -68,7 +69,7 @@ df_train <- prepare_trainingdata_fvar( df_fluxnet, settings )
 
 Train models and get `fvar` (is returned as one column in the returned data frame). Here, we specify the soil moisture threshold to separate training data into moist and dry days to 0.6 (fraction of water holding capacity). Deriving an optimal threshold is implemented by the functions `profile_soilmthreshold_fvar()` and `get_opt_threshold()` (see below).
 ```{r eval = FALSE}
-df_nn_soilm_obs <- train_predict_fvar( 
+out <- train_predict_fvar( 
   df_train,
   settings,
   soilm_threshold    = 0.6,
@@ -77,19 +78,19 @@ df_nn_soilm_obs <- train_predict_fvar(
   )
 ```
 
-Do the training again using another set of soil moisture data from a model.
-```{r eval=FALSE}
-settings$varnams_soilm <- "wcont_swbm"
+<!-- Do the training again using another set of soil moisture data from a model. -->
+<!-- ```{r eval=FALSE} -->
+<!-- settings$varnams_soilm <- "wcont_swbm" -->
 
-df_train <- prepare_trainingdata_fvar( df_fluxnet, settings )
+<!-- df_train <- prepare_trainingdata_fvar( df_fluxnet, settings ) -->
 
-df_nn <- train_predict_fvar( 
-  df_train,
-  settings,
-  soilm_threshold    = 0.6, 
-  weights            = NA,
-  )
-```
+<!-- df_nn <- train_predict_fvar(  -->
+<!--   df_train, -->
+<!--   settings, -->
+<!--   soilm_threshold    = 0.6,  -->
+<!--   weights            = NA, -->
+<!--   ) -->
+<!-- ``` -->
 
 ## Test performance of NN models
 
@@ -97,13 +98,13 @@ Multiple aspects need to be satisfied:
 
 1. NN$_\text{act}$ has no systematic bias related to the level of soil moisture.
 ```{r}
-df_nn_soilm_obs <- df_nn_soilm_obs %>% 
-  mutate(bias_act = nn_act - GPP_NT_VUT_REF,
-         bias_pot = nn_pot - GPP_NT_VUT_REF,
-         soilm_bin = cut(wcont_splash, 10)
+df_test <- out$df_all %>% 
+  mutate(bias_act = nn_act - obs,
+         bias_pot = nn_pot - obs,
+         soilm_bin = cut(soilm, 10)
          ) 
 
-df_nn_soilm_obs %>% 
+df_test %>% 
   tidyr::pivot_longer(cols = c(bias_act, bias_pot), names_to = "source", values_to = "bias") %>% 
   ggplot(aes(x = soilm_bin, y = bias, fill = source)) +
   geom_boxplot() +
@@ -111,48 +112,78 @@ df_nn_soilm_obs %>%
   labs(title = "Bias vs. soil moisture")
 ```
 
-This can be tested using a linear regression model of bias vs. soil moisture, testing wether the slope is significantly different from zero.
+This can be tested using a linear regression model of bias vs. soil moisture, testing whether the slope is significantly different from zero.
 ```{r}
-linmod <- lm(bias_act ~ wcont_splash, data = df_nn_soilm_obs)
+linmod <- lm(bias_act ~ soilm, data = df_test)
 testsum <- summary(linmod)
-slope_mid <- testsum$coefficients["wcont_splash","Estimate"]
-slope_se  <- testsum$coefficients["wcont_splash","Std. Error"]
+slope_mid <- testsum$coefficients["soilm","Estimate"]
+slope_se  <- testsum$coefficients["soilm","Std. Error"]
 passtest_bias_vs_soilm <- ((slope_mid - slope_se) < 0 && (slope_mid + slope_se) > 0)
 print(passtest_bias_vs_soilm)
 
-df_nn_soilm_obs %>% 
-  ggplot(aes(x = wcont_splash, y = bias_act)) +
+df_test %>% 
+  ggplot(aes(x = soilm, y = bias_act)) +
   geom_point() +
   geom_smooth(method = "lm")
 ```
 
 2. NN$_\text{pot}$ and NN$_\text{act}$ have no bias during moist days.
 ```{r}
-df_nn_soilm_obs %>% 
+df_test %>% 
   tidyr::pivot_longer(cols = c(bias_act, bias_pot), names_to = "source", values_to = "bias") %>% 
   dplyr::filter(moist) %>% 
   ggplot(aes(y = bias, fill = source)) +
   geom_boxplot() +
   geom_hline(aes(yintercept = 0), linetype = "dotted")
 
-df_nn_soilm_obs %>% 
+df_test %>% 
   dplyr::filter(moist) %>%
   summarise(bias_act = mean(bias_act, na.rm = TRUE), bias_pot = mean(bias_pot, na.rm = TRUE))
 ```
 
-3. NN$_\text{pot}$ and NN$_\text{act}$ have a high *R*$^2$ and low RMSE during moist days.
+3. NN$_\text{pot}$ and NN$_\text{act}$ have a good predictive model performance (high *R*$^2$ and low RMSE measured on cross-validation resamples) during moist days.
 ```{r}
-out_modobs <- df_nn_soilm_obs %>% 
+## NN act
+out_modobs <- out$df_cv %>% 
+  dplyr::filter(moist) %>% 
+  rbeni::analyse_modobs2("nn_act", "obs", type = "heat")
+out_modobs$gg +
+  labs(title = "NN act, moist days, CV")
+
+## NN pot
+out_modobs <- out$df_cv %>% 
+  dplyr::filter(moist) %>% 
+  rbeni::analyse_modobs2("nn_pot", "obs", type = "heat")
+out_modobs$gg +
+  labs(title = "NN pot, moist days, CV")
+```
+
+4. NN$_\text{act}$ has a good predictive model performance (high *R*$^2$ and low RMSE measured on cross-validation resamples) during dry days.
+```{r}
+## based on CV
+out_modobs <- out$df_cv %>% 
+  dplyr::filter(!moist) %>% 
+  rbeni::analyse_modobs2("nn_act", "obs", type = "heat")
+out_modobs$gg +
+  labs(title = "NN act, all days, CV")
+```
+
+4. NN$_\text{pot}$ and NN$_\text{act}$ have a high agreement (high *R*$^2$ and low RMSE) during moist days.
+```{r}
+## based on all
+out_modobs <- out$df_all %>% 
   dplyr::filter(moist) %>% 
   rbeni::analyse_modobs2("nn_pot", "nn_act", type = "heat")
 out_modobs$gg
+
+# ## based on CV
+# out_modobs <- out$df_cv %>% 
+#   dplyr::filter(moist) %>% 
+#   rbeni::analyse_modobs2("nn_pot", "nn_act", type = "heat")
+# out_modobs$gg
 ```
 
-4. Fit of NN$_\text{act}$ vs. observed (target) values.
-```{r}
-df_nn_soilm_obs %>% 
-  rbeni::analyse_modobs2("nn_act", "GPP_NT_VUT_REF", type = "heat")
-```
+**TO BE COMPLETED ALL BELOW**
 
 All above steps are implemented by function `test_performance_fvar()` which returns a list of all ggplot objects and a data frame with evaluation results for each of the three tests.
 ```{r}

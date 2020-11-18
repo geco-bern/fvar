@@ -5,7 +5,7 @@ predict_nn <- function( data, predictors, nam_target, weights=NULL, nn=NULL, do_
 
     require( nnet )
     require( caret )
-    require( recipes )
+    # require( recipes )
 
     downscale <- FALSE
     if (is.null(nn)){
@@ -34,7 +34,8 @@ predict_nn <- function( data, predictors, nam_target, weights=NULL, nn=NULL, do_
         )
       
       if (is.null(hidden)){
-        tune_grid <- expand.grid( .decay = c(0.05, 0.01, 0.005), .size = seq(4,20,2) )
+        # tune_grid <- expand.grid( .decay = c(0.05, 0.01, 0.005), .size = seq(5,30,5) )
+        tune_grid <- expand.grid( .decay = c(0.01), .size = 14 )
       } else {
         tune_grid <- expand.grid( .decay = c(0.01), .size = c(hidden) )
       }
@@ -55,29 +56,36 @@ predict_nn <- function( data, predictors, nam_target, weights=NULL, nn=NULL, do_
         na.action = na.omit
         )
       
+      ## get predicted values from cross-validation resamples, take mean across repetitions
+      df_cv <- nn$pred %>% 
+        as_tibble() %>% 
+        dplyr::filter(size == nn$bestTune$size, decay == nn$bestTune$decay) %>%
+        separate(Resample, into = c("fold", "rep")) %>% 
+        group_by(size, decay, rowIndex) %>% 
+        summarise(pred = mean(pred), obs = mean(obs)) %>% 
+        dplyr::rename(idx = rowIndex)
+      
+      nn$pred <- NULL
+      
+    } else {
+      df_cv <- NULL
     }
     
     if (do_predict){
       ## make predictions (on same data as used for training)
       vals <- as.vector( predict( nn, data ) )
       
+      if (downscale){ vals <- vals * 1e6 }
+      
+      ## create data frame with predictions on all data using final model, trained on all data
+      df_all <- tibble(idx = seq(nrow(data)),
+                       pred = vals,
+                       obs = data[[ nam_target ]])
+      
     } else {
-      vals <- rep( NA, nrow(data) )
+      df_all <- NULL
     }
     
-    ## get predicted values from cross-validation resamples, take mean across repetitions
-    vals_cv <- nn$pred %>% 
-      as_tibble() %>% 
-      dplyr::filter(size == nn$bestTune$size, decay == nn$bestTune$decay) %>% 
-      separate(Resample, into = c("fold", "rep")) %>% 
-      group_by(size, decay, rowIndex) %>% 
-      summarise(pred = mean(pred)) %>% 
-      pull(pred)
-    
-    if (downscale){ 
-      vals_cv <- vals_cv * 1e6
-      vals <- vals * 1e6
-      }
 
     # ## test 
     # data <- data %>% mutate(pred = vals)
@@ -98,6 +106,6 @@ predict_nn <- function( data, predictors, nam_target, weights=NULL, nn=NULL, do_
 
   }
 
-  return( list( nn = nn, vals = vals, vals_cv = vals_cv, hidden_best = nn$bestTune$size ) )
+  return( list( nn = nn, df_cv = df_cv, df_all = df_all ) )
 
 }
