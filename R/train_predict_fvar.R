@@ -5,13 +5,13 @@
 #' 
 train_predict_fvar <- function( df, settings, soilm_threshold, weights=NA, plot=FALSE, verbose = FALSE ){
 
-	##------------------------------------------------
-	## Determine "moist days", i.e. where soil moisture is above threshold.
-	## Get respective indices.
-	##------------------------------------------------
-	## If multiple layer's soil moisture data is available, do subset w.r.t. soil layer with highest value
-	# df <- df %>% mutate( maxsoilm = apply( dplyr::select( df, one_of(settings$varnams_soilm) ), 1, FUN = max, na.rm = TRUE ) )
-	# idxs_moist <- which( df$maxsoilm > soilm_threshold )
+  ##------------------------------------------------
+  ## Determine "moist days", i.e. where soil moisture is above threshold.
+  ## Get respective indices.
+  ##------------------------------------------------
+  ## If multiple layer's soil moisture data is available, do subset w.r.t. soil layer with highest value
+  # df <- df %>% mutate( maxsoilm = apply( dplyr::select( df, one_of(settings$varnams_soilm) ), 1, FUN = max, na.rm = TRUE ) )
+  # idxs_moist <- which( df$maxsoilm > soilm_threshold )
   
   ## simple
   idxs_moist <- which( df[[settings$varnams_soilm]] > soilm_threshold )
@@ -21,63 +21,63 @@ train_predict_fvar <- function( df, settings, soilm_threshold, weights=NA, plot=
   vec_moist[idxs_moist]  <- TRUE
   vec_moist[-idxs_moist] <- FALSE
 
-	## If no weights are specified, use 1 for all data points
-	if (is.na(weights)) weights <- rep( 1.0, nrow(df) )
+  ## If no weights are specified, use 1 for all data points
+  if (is.na(weights)) weights <- rep( 1.0, nrow(df) )
 
-	##------------------------------------------------
-	## Loop and aggregate over repetitions
-	##------------------------------------------------
-	out <- purrr::map(
-		as.list(seq(settings$nrep)),
-		~train_predict_fvar_byrep( 
-			., 
-			df,
-			idxs_moist,
-			settings, 
-			weights = weights, 
-			plot = FALSE,
-			verbose = verbose 
-			)
-		)
-	
-	names(out) <- paste0("rep", seq(settings$nrep))
-	
-	df_all <- out %>% 
-	  purrr::map_dfr("df_all") %>% 
-		dplyr::group_by(idx) %>%
-		dplyr::summarize(
-			nn_pot = mean(nn_pot, na.rm = TRUE),
-			nn_act = mean(nn_act, na.rm = TRUE),
-			fvar   = mean(nn_fxx, na.rm = TRUE)
-			) %>%
-		dplyr::mutate(moist = vec_moist) %>%
-		dplyr::mutate(fvar = remove_outliers_fXX(fvar, coef=3.0 )) %>% 
-	  
-	  ## re-append row ID (is first column)
-	  left_join(
-	    out %>% 
-	      purrr::map_dfr("df_all") %>% 
-	      dplyr::filter(irep == 1) %>% 
-	      dplyr::select(1, idx),
-	    by = "idx"
-	  ) %>% 
-	  
-	  ## complement with target variable and threshold variable (soil moisture)
-	  mutate(obs = df[[ settings$target ]],
-	         soilm = df[[ settings$varnams_soilm ]])
-	
-	df_cv <- out %>% 
-	  purrr::map_dfr("df_cv") %>% 
-	  dplyr::group_by(idx) %>%
-	  dplyr::summarize(
-	    nn_pot = mean(pred_pot, na.rm = TRUE),
-	    nn_act = mean(pred_act, na.rm = TRUE),
-	    obs    = mean(obs)
-	  ) %>%
-	  dplyr::mutate(moist = vec_moist)
+  ##------------------------------------------------
+  ## Loop and aggregate over repetitions
+  ##------------------------------------------------
+  out <- purrr::map(
+    as.list(seq(settings$nrep)),
+    ~train_predict_fvar_byrep( 
+      ., 
+      df,
+      idxs_moist,
+      settings, 
+      weights = weights, 
+      plot = FALSE,
+      verbose = verbose 
+      )
+    )
+  
+  names(out) <- paste0("rep", seq(settings$nrep))
+  
+  df_all <- out %>% 
+    purrr::map_dfr("df_all") %>% 
+    dplyr::group_by(idx) %>%
+    dplyr::summarize(
+      nn_pot = mean(nn_pot, na.rm = TRUE),
+      nn_act = mean(nn_act, na.rm = TRUE),
+      fvar   = mean(nn_fxx, na.rm = TRUE)
+      ) %>%
+    dplyr::mutate(moist = vec_moist) %>%
+    dplyr::mutate(fvar = remove_outliers_fXX(fvar, coef=3.0 )) %>% 
+    
+    ## re-append row ID (is first column)
+    left_join(
+      out %>% 
+        purrr::map_dfr("df_all") %>% 
+        dplyr::filter(irep == 1) %>% 
+        dplyr::select(1, idx),
+      by = "idx"
+    ) %>% 
+    
+    ## complement with target variable and threshold variable (soil moisture)
+    mutate(obs = df[[ settings$target ]],
+           soilm = df[[ settings$varnams_soilm ]])
+  
+  df_cv <- out %>% 
+    purrr::map_dfr("df_cv") %>% 
+    dplyr::group_by(idx) %>%
+    dplyr::summarize(
+      nn_pot = mean(pred_pot, na.rm = TRUE),
+      nn_act = mean(pred_act, na.rm = TRUE),
+      obs    = mean(obs)
+    ) %>%
+    dplyr::mutate(moist = vec_moist)
 
-	## return only models from first repetitions
-	return( list(nn_act = out$rep1$nn_act, nn_pot = out$rep1$nn_moist, df_all = df_all, df_cv = df_cv) )
+  ## return only models from first repetitions
+  return( list(nn_act = out$rep1$nn_act, nn_pot = out$rep1$nn_moist, df_all = df_all, df_cv = df_cv) )
 }
 
 train_predict_fvar_byrep <- function( irep, df, idxs_moist, settings, weights=NA, plot=FALSE, verbose ){
@@ -219,7 +219,7 @@ train_predict_fvar_byrep <- function( irep, df, idxs_moist, settings, weights=NA
     
   }
   
-  return(list(df_all = df_all, df_cv = df_cv, nn_act = out_nn_act, nn_moist = out_nn_moist))	
+  return(list(df_all = df_all, df_cv = df_cv, nn_act = out_nn_act, nn_moist = out_nn_moist))  
   
 }
 

@@ -1,0 +1,434 @@
+---
+title: "fvar R package"
+author: "Beni Stocker"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+---
+
+```{r}
+devtools::load_all(".")
+library(rsofun)
+library(dplyr)
+library(readr)
+library(lubridate)
+library(ggplot2)
+```
+
+## Usage example
+
+### Get FLUXNET 2015 data
+
+Training data is to be read in as a data frame with column names corresponding to the variable names defined by `settings` (see below).
+
+Read observational data including soil moisture for one site (see column `sitename`) from FLUXNET 2015 data. The following loads data extracted from original files by `data-raw/prepare_data_example.R`.
+```{r}
+load("./data/df_fluxnet.Rdata")
+load("./new_data/ddf_FR_Pue.RData")
+
+df_fluxnet <- df_fluxnet %>% left_join(ddf, by = "date")
+```
+
+See missing data
+```{r}
+library(visdat)
+
+vis_miss(
+  sample_n(df_fluxnet, 3000),
+  cluster = FALSE, 
+  warn_large_data = FALSE
+  )
+
+# save plot
+dev.copy(png,'missing_data.png', units="in", width=5, height=3, res=300)
+dev.off()
+```
+
+Observational Data Check
+```{r, eval = FALSE}
+# scatter GPP-temp
+df_fluxnet %>% 
+  rbeni::analyse_modobs2("GPP_NT_VUT_REF", "temp_day", type = "heat")
+
+# scatter GPP-VPD
+df_fluxnet %>% 
+  rbeni::analyse_modobs2("GPP_NT_VUT_REF", "vpd_day", type = "heat")
+
+# scatter GPP-PPFD
+df_fluxnet %>% 
+  rbeni::analyse_modobs2("GPP_NT_VUT_REF", "ppfd", type = "heat")
+
+# scatter GPP-SM
+df_fluxnet %>% 
+  rbeni::analyse_modobs2("GPP_NT_VUT_REF", "wcont_splash", type = "heat")
+```
+
+## Define settings
+This named list is used by several functions of the package.
+```{r}
+# ## use all observational soil moisture data
+# varnams_soilm <- df_fluxnet %>% 
+#   dplyr::select( starts_with("SWC_") ) %>% 
+#   dplyr::select( -ends_with("QC") ) %>% 
+#   names()
+
+
+settings <- list(
+   
+## only predictors with a lot of data
+#   target        = "ET",
+#   predictors    = c("temp_day","vpd_day", "netrad", "fpar"),
+
+  ## 8 predictors with fpar
+  target        = "ET",
+  predictors    = c("temp_day","vpd_day", "netrad","WS_F", "G_F_MDS", "P_F", "USTAR", "fpar"),
+
+  ## Pierre-Maes
+  # target        = "ET",
+  # predictors    = c("netrad"),
+  
+  # original ET predictors (PM approach)
+  # target        = "ET",
+  # predictors    = c("vpd_day", "netrad", "temp_day", "WS_F"),
+
+  ## original GPP predictors  
+  #  target        = "GPP_NT_VUT_REF",
+  # predictors    = c("temp_day","vpd_day", "ppfd", "fpar"),
+  
+  varnams_soilm = "wcont_splash",
+  nneurons_good = 10,    #HYPERPARAMETERS
+  nneurons_all  = 10,
+  nrep          = 3,
+  package       = "nnet"
+  )
+```
+
+The settings are a named list that must contain the following variables:
+
+- `target`        : Character, target variable for the NN model, must correspond to the respective column name in the training data.
+- `predictors`    : Vector of characters, predictor variables (excluding soil moisture) for the NN model, must correspond to the respective column name in the training data.
+- `varnams_soilm` : (Vector of) character(s). Name of the soil moisture variable(s). Must correspond to the respective column name in the training data.
+- `nnodes`        : Number of hidden nodes of the NN.
+- `nrep`          : Number of repetitions of NN model training. `fvar` is calculated as a mean across repetitions.
+- `package`       : R package name that implements the NN (for now, use `"nnet"`, which is used in combination with `caret`)
+
+
+## Prepare data
+
+To prepare training data, removing NAs and outliers, in a standardized way.
+```{r}
+df_train <- prepare_trainingdata_fvar(df_fluxnet, settings)
+```
+
+## Train models and predict fvar
+
+Train models and get `fvar` (is returned as one column in the returned data frame). Here, we specify the soil moisture threshold to separate training data into moist and dry days to 0.6 (fraction of water holding capacity). Deriving an optimal threshold is implemented by the functions `profile_soilmthreshold_fvar()` and `get_opt_threshold()` (see below).
+```{r eval = FALSE}
+df_nn_soilm_obs <- train_predict_fvar( 
+  df_train,
+  settings,
+  soilm_threshold    = 0.6,
+  weights            = NA, 
+  verbose = TRUE
+  )
+```
+
+Do the training again using another set of soil moisture data from a model.
+```{r eval=FALSE}
+settings$varnams_soilm <- "wcont_swbm"
+
+df_train <- prepare_trainingdata_fvar( df_fluxnet, settings )
+
+# SPLIT into training and testing (validation already implmented in algorithm, cross-validation)
+
+df_nn <- train_predict_fvar( 
+  df_train,
+  settings,
+  soilm_threshold    = 0.6, 
+  weights            = NA,
+  )
+```
+
+## Test performance of NN models
+Plot time series of NN_act, NN_pot and VARobs
+```{r eval=FALSE}
+m <- ggplot(data = df_nn_soilm_obs, aes(x=date)) +
+  geom_line(aes(y = ET, color = "ET")) +
+  geom_line(aes(y = nn_act, color = "nn_act")) +
+  geom_line(aes(y = nn_pot, color = "nn_pot")) +
+  labs(x = "Time", y = "mm/day", color = "Legend")
+m +  scale_color_manual(values = c("brown1", "cornflowerblue", "chartreuse"))
+
+# save plot
+dev.copy(png,'ET_vs_nn.png', units="in", width=5, height=3, res=300)
+dev.off()
+```
+
+Multiple aspects need to be satisfied:
+
+1. NN$_\text{act}$ has no systematic bias related to the level of soil moisture.
+```{r}
+df_nn_soilm_obs <- df_nn_soilm_obs %>% 
+  mutate(bias_act = nn_act - ET,
+         bias_pot = nn_pot - ET,
+         soilm_bin = cut(wcont_splash, 10)
+         ) 
+
+df_nn_soilm_obs %>% 
+  tidyr::pivot_longer(cols = c(bias_act, bias_pot), names_to = "source", values_to = "bias") %>% 
+  ggplot(aes(x = soilm_bin, y = bias, fill = source)) +
+  geom_boxplot() +
+  geom_hline(aes(yintercept = 0.0), linetype = "dotted") +
+  labs(title = "Bias vs. soil moisture")
+
+# save plot
+dev.copy(png,'bias_act_pot.png', units="in", width=5, height=3, res=300)
+dev.off()
+```
+
+This can be tested using a linear regression model of bias vs. soil moisture, testing whether the slope is significantly different from zero.
+```{r}
+linmod <- lm(bias_act ~ wcont_splash, data = df_nn_soilm_obs)
+testsum <- summary(linmod)
+slope_mid <- testsum$coefficients["wcont_splash","Estimate"]
+slope_se  <- testsum$coefficients["wcont_splash","Std. Error"]
+passtest_bias_vs_soilm <- ((slope_mid - slope_se) < 0 && (slope_mid + slope_se) > 0)
+print(passtest_bias_vs_soilm)
+
+df_nn_soilm_obs %>% 
+  ggplot(aes(x = wcont_splash, y = bias_act)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+
+# save plot
+dev.copy(png,'lm_bias_vs_soilmoisture.png', units="in", width=5, height=3, res=300)
+dev.off()
+```
+
+2. NN$_\text{pot}$ and NN$_\text{act}$ have no bias during moist days.
+```{r}
+df_nn_soilm_obs %>% 
+  tidyr::pivot_longer(cols = c(bias_act, bias_pot), names_to = "source", values_to = "bias") %>% 
+  dplyr::filter(moist) %>% 
+  ggplot(aes(y = bias, fill = source)) +
+  geom_boxplot() +
+  geom_hline(aes(yintercept = 0), linetype = "dotted")
+
+df_nn_soilm_obs %>% 
+  dplyr::filter(moist) %>%
+  summarise(bias_act = mean(bias_act, na.rm = TRUE), bias_pot = mean(bias_pot, na.rm = TRUE))
+
+# save plot
+dev.copy(png,'bias_nn_moistdays.png', units="in", width=5, height=3, res=300)
+dev.off()
+```
+
+3. NN$_\text{pot}$ and NN$_\text{act}$ have a high *R*$^2$ and low RMSE during moist days.
+```{r}
+out_modobs <- df_nn_soilm_obs %>% 
+  dplyr::filter(moist) %>% 
+  rbeni::analyse_modobs2("nn_pot", "nn_act", type = "heat")
+out_modobs$gg
+
+# save plot
+dev.copy(png,'scatter_nn_act-pot.png', units="in", width=5, height=3, res=300)
+dev.off()
+```
+
+4. Fit of NN$_\text{act}$ vs. observed (target) values.
+```{r}
+df_nn_soilm_obs %>% 
+  rbeni::analyse_modobs2("nn_act", "ET", type = "heat")
+
+# save plot
+dev.copy(png,'scatter_ET-nn_act.png', units="in", width=5, height=3, res=300)
+dev.off()
+```
+
+All above steps are implemented by function `test_performance_fvar()` which returns a list of all ggplot objects and a data frame with evaluation results for each of the three tests.
+```{r}
+testresults_fvar <- test_performance_fvar(df_nn_soilm_obs, settings)
+```
+
+## Get optimal soil moisture threshold
+
+The two steps above (train/predict and performance evaluation) are executed for a set of soil moisture thresholds. The optimal threshold is then selected based on the different performance criteria.
+
+First, run the fvar algorithm for a set of soil moisture thresholds and record performance metrics for each round.
+```{r eval=FALSE}
+df_profile_performance <- profile_soilmthreshold_fvar(
+  df_train,
+  settings,
+  weights = NA,
+  len = 4
+  )
+```
+
+Select best threshold as described in Stocker et al. (2018). Their procedure was as follows:
+
+1. Determine the difference in the bias of NN$_\text{pot}$ between dry and moist days and select the three (originally used five) thresholds with the greatest difference.
+2. Determine RMSE of NNpot vs. NNact during moist days and take the threshold where it's minimised
+```{r}
+purrr::map(df_profile_performance, "df_metrics") %>% 
+  bind_rows(.id = "threshold") %>% 
+  arrange(-diff_ratio_dry_moist) %>% 
+  slice(1:3) %>% 
+  arrange(rmse_nnpot_nnact_moist) %>% 
+  slice(1) %>% 
+  pull(threshold) %>% 
+  as.numeric()
+```
+
+This is implemented by a function:
+```{r}
+# exact same as previous chunk (no need to run twice)
+get_opt_threshold(df_profile_performance)
+```
+
+Repeat the fvar algorithm with optimal threshold.
+```{r}
+df_nn <- train_predict_fvar( 
+  df_train,
+  settings,
+  soilm_threshold = get_opt_threshold(df_profile_performance),
+  weights         = NA
+  )
+```
+
+<!-- I tried a different approach, too: -->
+
+<!-- Select best threshold, based on the different criteria.  -->
+<!-- ```{r} -->
+<!-- calc_inverse <- function(x){1/x} -->
+<!-- calc_inverse_absdiff_to_one <- function(x){1/abs(x-1)} -->
+
+<!-- df_profile_summary <- df_profile_performance %>%  -->
+
+<!--   ## small bias -->
+<!--   mutate_at(vars(starts_with("bias")), list(abs)) %>%  -->
+
+<!--   ## small value is good -> take the inverse -->
+<!--   mutate_at(vars(ends_with("rmse")), list(calc_inverse)) %>%  -->
+
+<!--   ## small difference to one is good -->
+<!--   mutate_at(vars(ends_with("slope")), list(calc_inverse_absdiff_to_one)) %>%  -->
+<!--   mutate_at(vars(starts_with("slope")), list(calc_inverse_absdiff_to_one)) %>%  -->
+
+<!--   ## center and scale all  -->
+<!--   mutate_at(c(1, 3:10), list(scale)) %>%  -->
+<!--   t() -->
+
+<!-- df_profile_summary <- df_profile_summary %>%  -->
+<!--   as_tibble() %>%  -->
+<!--   setNames(as.character(paste0("thresh_", df_profile_summary["threshold",]))) %>%  -->
+<!--   filter_all(all_vars(!is.nan(.))) %>%  -->
+<!--   summarise_all(sum, nan.rm=TRUE) -->
+<!-- ``` -->
+
+## Evaluations and visualisations
+
+### Identify soil moisture droughts
+
+Optional: aggregate fvar derived from different soil moisture datasets
+```{r eval = FALSE}
+df_nn_multiplesoilmsources <- bind_rows( df_nn_soilm_obs, df_nn_soilm_obs ) %>% 
+  group_by( date ) %>%
+  summarise( 
+    fvar       = mean( fvar, na.rm=TRUE ), 
+    fvar_min   = min(  fvar, na.rm=TRUE ),
+    fvar_max   = max(  fvar, na.rm=TRUE ), 
+    fvar_med   = median(  fvar, na.rm=TRUE ), 
+    nn_pot = mean( nn_pot, na.rm=TRUE ), 
+    nn_act = mean( nn_act, na.rm=TRUE )
+    ) %>%
+  left_join( select_( df_fluxnet, "date", settings$target ), by = "date" )
+```
+
+Determine drought events based on fvar.
+```{r}
+out_droughts <- get_droughts_fvar( 
+  df_nn, 
+  nam_target     = settings$target, 
+  leng_threshold = 10, 
+  df_soilm       = select(df_fluxnet, date, soilm=wcont_swbm),
+  df_par         = select(df_fluxnet, date, par=ppfd),
+  par_runmed     = 10
+  )
+```
+
+Plot time series of fvar and highlight drought events.
+```{r}
+ggplot() +
+  geom_rect(
+    data=out_droughts$droughts, 
+    aes(xmin=date_start, xmax=date_end, ymin=-99, ymax=99), 
+    fill=rgb(0,0,0,0.3), 
+    color=NA) + 
+  geom_line(data=out_droughts$df_nn, aes(date, fvar_smooth_filled)) +
+  coord_cartesian(ylim=c(0, 1.2))
+```
+
+### Align data by droughts
+
+After having determined drought events above, "align" data by the day of drought onset and aggregate data across multiple drought instances.
+```{r}
+dovars <- c("GPP_NT_VUT_REF", "fvar", "soilm", "nn_pot", "nn_act")
+df_nn <- out_droughts$df_nn %>% mutate(site="FR-Pue")
+df_alg <- align_events( 
+  select( df_nn, site, date, one_of(dovars)), 
+  select( df_nn, site, date, isevent=is_drought_byvar_recalc ),
+  dovars,
+  do_norm=FALSE,
+  leng_threshold=10, 
+  before=20, after=80, nbins=10
+  )
+```
+
+
+Visualise data aggregated by drought events.
+```{r}
+df_alg$df_dday_agg_inst_site %>% 
+  ggplot(aes(dday, fvar_median)) +
+  geom_ribbon(aes(ymin=fvar_q33, ymax=fvar_q66), fill="grey70") +
+  geom_line() +
+  geom_vline(xintercept=0, linetype="dotted") +
+  ylim(0,1) + 
+  labs(title = "fVAR")
+
+median <- df_alg$df_dday_agg_inst_site %>%
+  select(dday, nn_pot=nn_pot_median, nn_act=nn_act_median, gpp_obs=GPP_NT_VUT_REF_median) %>% 
+  tidyr::gather(model, var_nn_median, c(gpp_obs, nn_pot, nn_act))
+
+q33 <- df_alg$df_dday_agg_inst_site %>%
+  select(dday, nn_pot=nn_pot_q33, nn_act=nn_act_q33, gpp_obs=GPP_NT_VUT_REF_q33) %>% 
+  tidyr::gather(model, var_nn_q33, c(gpp_obs, nn_pot, nn_act))
+
+q66 <- df_alg$df_dday_agg_inst_site %>%
+  select(dday, nn_pot=nn_pot_q66, nn_act=nn_act_q66, gpp_obs=GPP_NT_VUT_REF_q66) %>% 
+  tidyr::gather(model, var_nn_q66, c(gpp_obs, nn_pot, nn_act))
+
+df_tmp <- median %>% 
+  left_join(q33, by=c("dday", "model")) %>% 
+  left_join(q66, by=c("dday", "model"))
+
+df_tmp %>% 
+  ggplot(aes(dday, var_nn_median, color=model)) +
+  geom_line() +
+  geom_ribbon(aes(ymin=var_nn_q33, ymax=var_nn_q66, fill=model), alpha=0.3, color=NA) +
+  geom_vline(xintercept=0, linetype="dotted") +
+  labs(
+    title = "GPP", 
+    subtitle = "Observation and models",
+    x="dday", y="GPP (g C m-2 d-1)") +
+  scale_color_discrete(
+    name="Model", 
+    breaks=c("transp_obs", "nn_act", "nn_pot"),
+    labels=c("Observed", expression(NN[act]), expression(NN[pot])) ) +
+  scale_fill_discrete(
+    name="Model", 
+    breaks=c("transp_obs", "nn_act", "nn_pot"),
+    labels=c("Observed", expression(NN[act]), expression(NN[pot])) )
+```
