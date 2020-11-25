@@ -13,12 +13,12 @@ predict_nn_keras <- function(df, nam_target, predictors, prop){
   out_train <- predict_nn_keras_byfold(df_shffld, nam_target, predictors, idx = idx)
 
   ## add predictions to original data frame
-  nam_joinvars <- out_train$df_test %>%
+  nam_joinvars <- out_train$df_cv %>%
     dplyr::select(-pred) %>%
     names()
   out_train$df_compl <- df %>%
     select(-one_of(c(predictors))) %>%
-    left_join(out_train$df_test, by = nam_joinvars)
+    left_join(out_train$df_cv, by = nam_joinvars)
 
   return(out_train)
 }
@@ -58,19 +58,33 @@ predict_nn_keras_byfold <- function(df, nam_target, predictors, idx){
   )
 
   ##---------------------------------------
-  ## Predict with trained model
+  ## Predict with trained model on test set only
   ##---------------------------------------
-  vec_target <- df_test %>% pull(nam_target)
+  # vec_target <- df_test %>% pull(nam_target)
   df_test <- df_test %>% select(one_of(predictors))
   df_test <- predict(pp, df_test)    # transform the test data to center and scale it
   df_test <- as.matrix(df_test)
   vec_pred <- predict(model, df_test)
 
   ## construct data frame with test results
-  df_test <- df[-idx, ] %>%
-    select(-one_of(c(nam_target, predictors))) %>%
+  df_cv <- df[-idx, ] %>%
+    select(-one_of(c(predictors))) %>%
     mutate(pred = as.vector(vec_pred))
 
-  return(list(model = model, pp = pp, df_test = df_test))
+  ##---------------------------------------
+  ## Predict with trained model on all data - UNTESTED
+  ##---------------------------------------
+  # vec_target_all <- df %>% pull(nam_target)
+  df_all <- df %>% select(one_of(predictors))
+  df_all <- predict(pp, df_all)    # transform the test data to center and scale it
+  df_all <- as.matrix(df_all)
+  vec_pred_all <- predict(model, df_all)
+  
+  ## construct data frame with test results
+  df_all <- df %>%
+    select(-one_of(c(predictors))) %>%
+    mutate(pred = as.vector(vec_pred_all))
+  
+  return(list(nn = model, pp = pp, df_cv = df_cv, df_all = df_all))
 
 }
