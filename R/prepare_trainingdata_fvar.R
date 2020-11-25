@@ -7,18 +7,20 @@
 #' 
 prepare_trainingdata_fvar <- function( df, settings ){
 
-	##------------------------------------------------
-	## Remove outliers in target variable
-	##------------------------------------------------
-  ## xxx help: this needs to do either or, not both, depending on what is settings$target!
-  ## Don't know if this one here is correct:
-  df <- df %>% dplyr::mutate_at( vars(settings$target), ~remove_outliers(.) ) %>%
+  df <- df %>% 
+    
+    ##------------------------------------------------
+    ## Remove outliers in target variable
+    ##------------------------------------------------
+    ## xxx help: this needs to do either or, not both, depending on what is settings$target!
+    ## Don't know if this one here is correct:
+    dplyr::mutate_at( vars(settings$target), ~remove_outliers(.) ) %>%
 
-	##------------------------------------------------
-	## Get observational soil moisture data (not the same number of layers available for all sites)
-	##------------------------------------------------
-	## normalise to within zero and one
-	  mutate_at( vars(one_of(settings$varnams_soilm)), list(~norm_to_max(.)) ) %>%
+  	##------------------------------------------------
+  	## Get observational soil moisture data (not the same number of layers available for all sites)
+  	##------------------------------------------------
+  	## normalise to within zero and one
+	  mutate_at( vars(one_of(settings$varnams_soilm)), list(~norm_to_max(.)) ) %>% 
 	
     # ## get mean observational soil moisture across different depths (if available)
     # mutate( soilm_mean = apply( dplyr::select( ., starts_with("SWC_")), 1, FUN = mean, na.rm = TRUE ) ) %>%
@@ -30,9 +32,9 @@ prepare_trainingdata_fvar <- function( df, settings ){
 # 	## Use only days where temperature is above 5 degrees
 #     dplyr::filter( temp > 5.0 ) %>%
 
-  ##------------------------------------------------
-  ## do additional data cleaning, removing NA in target variable, necessary for NN training
-  ##------------------------------------------------
+    ##------------------------------------------------
+    ## do additional data cleaning, removing NA in target variable, necessary for NN training
+    ##------------------------------------------------
     dplyr::filter_at( settings$target, all_vars(!is.na(.)) )
   
   ##------------------------------------------------
@@ -55,11 +57,15 @@ prepare_trainingdata_fvar <- function( df, settings ){
   if ( length(drop_idx)>0 ) { settings$varnams_soilm <- settings$varnams_soilm[-drop_idx] }
   
   ## finally actually remove NAs in observed soil moisture data
-  df <- df %>% dplyr::filter_at( settings$varnams_soilm, all_vars(!is.na(.)) )
-  
-  ## for safety, remove rows with NA again
-  df <- df %>% tidyr::drop_na()
-  
+  df <- df %>% 
+    dplyr::filter_at( settings$varnams_soilm, all_vars(!is.na(.)) ) %>% 
+    
+    ## retain only target and predictors
+    dplyr::select(settings$rowid, one_of(settings$predictors), one_of(settings$varnams_soilm), one_of(settings$target)) %>% 
+    
+    ## remove rows with NA values
+    drop_na()  
+
   # ## rename soil moisture column to 'soilm'
   # df$soilm <- df[ settings$varnams_soilm ]
   # df <- df[,-which(names(df)==settings$varnams_soilm)]
