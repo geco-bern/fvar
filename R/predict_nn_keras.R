@@ -60,7 +60,6 @@ predict_nn_keras_byfold <- function(df, nam_target, predictors, idx){
   ##---------------------------------------
   ## Predict with trained model on test set only
   ##---------------------------------------
-  # vec_target <- df_test %>% pull(nam_target)
   df_test <- df_test %>% select(one_of(predictors))
   df_test <- predict(pp, df_test)    # transform the test data to center and scale it
   df_test <- as.matrix(df_test)
@@ -74,7 +73,6 @@ predict_nn_keras_byfold <- function(df, nam_target, predictors, idx){
   ##---------------------------------------
   ## Predict with trained model on all data - UNTESTED
   ##---------------------------------------
-  # vec_target_all <- df %>% pull(nam_target)
   df_all <- df %>% select(one_of(predictors))
   df_all <- predict(pp, df_all)    # transform the test data to center and scale it
   df_all <- as.matrix(df_all)
