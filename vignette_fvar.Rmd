@@ -70,7 +70,7 @@ df_train <- prepare_trainingdata_fvar( df_fluxnet, settings )
 ## Train models and predict fvar
 
 Train models and get `fvar` (is returned as one column in the returned data frame). Here, we specify the soil moisture threshold to separate training data into moist and dry days to 0.6 (fraction of water holding capacity). Deriving an optimal threshold is implemented by the functions `profile_soilmthreshold_fvar()` and `get_opt_threshold()` (see below).
-```{r eval = FALSE}
+```{r}
 df_nn_soilm_obs <- train_predict_fvar( 
   df_train,
   settings,
@@ -167,12 +167,13 @@ testresults_fvar <- test_performance_fvar(df_nn_soilm_obs, settings)
 The two steps above (train/predict and performance evaluation) are executed for a set of soil moisture thresholds. The optimal threshold is then selected based on the different performance criteria.
 
 First, run the fvar algorithm for a set of soil moisture thresholds and record performance metrics for each round.
-```{r eval=FALSE}
+```{r}
 df_profile_performance <- profile_soilmthreshold_fvar(
   df_train,
   settings,
   weights = NA,
-  len = 4
+  len = 4, 
+  verbose = TRUE
   )
 ```
 
@@ -286,8 +287,7 @@ After having determined drought events above, "align" data by the day of drought
 dovars <- c("GPP_NT_VUT_REF", "fvar", "soilm", "nn_pot", "nn_act")
 df_nn <- out_droughts$df_nn %>% mutate(site="FR-Pue")
 df_alg <- align_events( 
-  select( df_nn, site, date, one_of(dovars)), 
-  select( df_nn, site, date, isevent=is_drought_byvar_recalc ),
+  select(df_nn, site, date, one_of(dovars), isevent=is_drought_byvar_recalc), 
   dovars,
   do_norm=FALSE,
   leng_threshold=10, 

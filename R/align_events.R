@@ -2,32 +2,36 @@
 #'
 #' Uses a vectory specifying whether data falls into an event to reshape data, aligning by the onset of the event
 #' 
-#' @param df A data frame containing all data continuously along time, required column named \code{site, date}. 
-#' @param df_isevent A data frame \code{nrow(df_isevent)==nrow(df)} specifying whether respective dates 
-#' (matching dates in \code{df}), fall satisfy a condition that is used to define events. Events are 
-#' consecutive dates, where this condition is satisfied (minimum length for defining an event is given by 
-#' \code{leng_threshold}). Required columns \code{site, date}
+#' @param df A data frame containing all data continuously along time. The data frame must contain one column of type logical
+#' named \code{"isevent"}, specifying whether respective dates satisfy a user-defined condition that is used to define events. 
+#' Events are determined by the function based on consecutive dates, where this condition is satisfied (minimum length for 
+#' defining an event is given by \code{leng_threshold}).
 #' @param dovars A vector of character strings specifying which columns of \code{df} to re-arrange.
 #' @param before An integer specifying the number of days before the event onset to be retained in re-arranged data 
 #' @param after An integer specifying the number of days after the event onset to be retained in re-arranged data 
-#' @param do_norm A logical specifying whether re-arranged data is to be normalised by its value before the drought onset
+#' @param do_norm A logical specifying whether re-arranged data is to be normalised with respect to its value before the drought onset
 
 #'
 #' @return An aligned data frame
 #' @export
 #'
-#' @examples df_alg <- align_events( df, truefalse, before=30, after=300 )
+#' @examples df_alg <- align_events( df, before=30, after=300 )
 #' 
-align_events <- function( df, df_isevent, dovars, leng_threshold, before, after, nbins, do_norm=FALSE ){
+align_events <- function( df, dovars, leng_threshold, before, after, nbins, do_norm=FALSE ){
 
   require( dplyr )
   require( tidyr )
+
+  if (!("isevent" %in% names(df))){
+    rlang::abort("align_events(): Column named isevent is missing in data frame df.")
+  }
+
 
   ## Bins for different variables XXX a bit weird with default values
   bins  <- seq( from=-before, to=after, by=(after+before)/nbins )
 
   ## merge df_isevent into df
-  df <- df %>% left_join( df_isevent, by=c("site", "date")) %>% mutate( idx_df = 1:n() )
+  df <- df %>% mutate( idx_df = 1:n() )
 
   ##--------------------------------------------------------
   ## Identify events ()

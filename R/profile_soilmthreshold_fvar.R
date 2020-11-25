@@ -1,7 +1,8 @@
 profile_soilmthreshold_fvar <- function(df_train,
                                         settings,
                                         weights = NA,
-                                        len = 10){
+                                        len = 10,
+                                        verbose = FALSE){
   
   ## profile threshold
   thresh_seq <- seq(from = 0, to = 1, length.out = len+2)
@@ -14,7 +15,8 @@ profile_soilmthreshold_fvar <- function(df_train,
       .,
       df_train = df_train,
       settings = settings,
-      weights = weights
+      weights = weights,
+      verbose = verbose
       )
     )
   names(list_eval) <- as.character(thresh_seq)
@@ -25,7 +27,8 @@ profile_soilmthreshold_fvar <- function(df_train,
 profile_soilmthreshold_fvar_bythreshold <- function(threshold,
                                                     df_train,
                                                     settings,
-                                                    weights = NA){
+                                                    weights = NA,
+                                                    verbose = FALSE){
   
   ## Train/predict
   df_nn <- train_predict_fvar( 
@@ -33,6 +36,7 @@ profile_soilmthreshold_fvar_bythreshold <- function(threshold,
     settings,
     soilm_threshold    = threshold, 
     weights            = NA,
+    verbose            = verbose
   )
   
   ## Performance evaluation
