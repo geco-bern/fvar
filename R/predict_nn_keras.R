@@ -1,6 +1,4 @@
-train_predict_keras <- function(df, nam_target, predictors, prop){
-
-  set.seed(2020)
+predict_nn_keras <- function(df, nam_target, predictors, prop){
 
   ## First shuffle the dataset
   df_shffld <- df[sample(nrow(df)),]
@@ -12,7 +10,7 @@ train_predict_keras <- function(df, nam_target, predictors, prop){
   ##---------------------------------------
   ## Train, given indices for training
   ##---------------------------------------
-  out_train <- train_predict_keras_byfold(df_shffld, nam_target, predictors, idx = idx)
+  out_train <- predict_nn_keras_byfold(df_shffld, nam_target, predictors, idx = idx)
 
   ## add predictions to original data frame
   nam_joinvars <- out_train$df_test %>%
@@ -25,15 +23,11 @@ train_predict_keras <- function(df, nam_target, predictors, prop){
   return(out_train)
 }
 
-train_predict_keras_byfold <- function(df, nam_target, predictors, idx){
+predict_nn_keras_byfold <- function(df, nam_target, predictors, idx){
 
   ## Use the  indicies to get test and train splits
   df_train <- df[idx, ] ## include all columns
   df_test <- df[-idx, ]  ## include all columns
-
-  # ## Save time stamps for the test and train splits, as a separate data frame for time-series plots 
-  # train_data_time <- df_train$TIMESTAMP_START
-  # test_data_time <- test_split$TIMESTAMP_START
 
   ## Separate the splits to get train_data, train_target, test_data and test_target. After this you should have 4 corresponding dataframes. Also drop the time stamp columns from the train data and test data as we treat the observations as IID. ( we have stored them separately for plots )
   train_target <-  df_train %>% select(nam_target)
@@ -70,7 +64,6 @@ train_predict_keras_byfold <- function(df, nam_target, predictors, idx){
   df_test <- df_test %>% select(one_of(predictors))
   df_test <- predict(pp, df_test)    # transform the test data to center and scale it
   df_test <- as.matrix(df_test)
-
   vec_pred <- predict(model, df_test)
 
   ## construct data frame with test results
