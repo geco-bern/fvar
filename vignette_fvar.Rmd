@@ -24,6 +24,8 @@ Training data is to be read in as a data frame with column names corresponding t
 Read observational data including soil moisture for one site (see column `sitename`) from FLUXNET 2015 data. The following loads data extracted from original files by `data-raw/prepare_data_example.R`.
 ```{r}
 load("./data/df_fluxnet.Rdata")
+load("./new_data/ddf_FR_Pue.RData") # merge with ET data
+df_fluxnet <- df_fluxnet %>% left_join(ddf, by = "date")
 ```
 
 ## Define settings
@@ -37,8 +39,8 @@ This named list is used by several functions of the package.
 #   names()
 
 settings <- list( 
-  target        = "GPP_NT_VUT_REF", 
-  predictors    = c("temp_day","vpd_day", "ppfd", "fpar", "swin", "netrad"), 
+  predictors    = c("TA_F_DAY","vpd_day", "netrad","WS_F", "P_F", "USTAR", "fpar", "TS_F_MDS_1"),
+  target        = "ET", 
   varnams_soilm = "wcont_splash",
   rowid         = "date",
   nnodes_pot    = 15,
