@@ -37,7 +37,6 @@ This named list is used by several functions of the package.
 #   dplyr::select( starts_with("SWC_") ) %>% 
 #   dplyr::select( -ends_with("QC") ) %>% 
 #   names()
-
 settings <- list( 
   predictors    = c("TA_F_DAY","vpd_day", "netrad","WS_F", "P_F", "USTAR", "fpar", "TS_F_MDS_1"),
   target        = "ET", 
@@ -105,7 +104,6 @@ df_test <- out$df_all %>%
          bias_pot = nn_pot - obs,
          soilm_bin = cut(soilm, 10)
          ) 
-
 df_test %>% 
   tidyr::pivot_longer(cols = c(bias_act, bias_pot), names_to = "source", values_to = "bias") %>% 
   ggplot(aes(x = soilm_bin, y = bias, fill = source)) +
@@ -122,7 +120,6 @@ slope_mid <- testsum$coefficients["soilm","Estimate"]
 slope_se  <- testsum$coefficients["soilm","Std. Error"]
 passtest_bias_vs_soilm <- ((slope_mid - slope_se) < 0 && (slope_mid + slope_se) > 0)
 print(passtest_bias_vs_soilm)
-
 df_test %>% 
   ggplot(aes(x = soilm, y = bias_act)) +
   geom_point() +
@@ -137,7 +134,6 @@ df_test %>%
   ggplot(aes(y = bias, fill = source)) +
   geom_boxplot() +
   geom_hline(aes(yintercept = 0), linetype = "dotted")
-
 df_test %>% 
   dplyr::filter(moist) %>%
   summarise(bias_act = mean(bias_act, na.rm = TRUE), bias_pot = mean(bias_pot, na.rm = TRUE))
@@ -151,7 +147,6 @@ out_modobs <- out$df_cv %>%
   rbeni::analyse_modobs2("nn_act", "obs", type = "heat")
 out_modobs$gg +
   labs(title = "NN act, moist days, CV")
-
 ## NN pot
 out_modobs <- out$df_cv %>% 
   dplyr::filter(moist) %>% 
@@ -177,7 +172,6 @@ out_modobs <- out$df_all %>%
   dplyr::filter(moist) %>% 
   rbeni::analyse_modobs2("nn_pot", "nn_act", type = "heat")
 out_modobs$gg
-
 # ## based on CV
 # out_modobs <- out$df_cv %>% 
 #   dplyr::filter(moist) %>% 
