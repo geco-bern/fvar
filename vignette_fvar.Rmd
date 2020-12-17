@@ -13,6 +13,10 @@ output:
 devtools::load_all(".")
 library(rsofun)
 library(tidyverse)
+
+library(keras)
+library(reticulate)
+library(caret)
 ```
 
 ## Usage example
@@ -23,10 +27,96 @@ Training data is to be read in as a data frame with column names corresponding t
 
 Read observational data including soil moisture for one site (see column `sitename`) from FLUXNET 2015 data. The following loads data extracted from original files by `data-raw/prepare_data_example.R`.
 ```{r}
-load("./data/df_fluxnet.Rdata")
-load("./new_data/ddf_FR_Pue.RData") # merge with ET data
-df_fluxnet <- df_fluxnet %>% left_join(ddf, by = "date")
+# load("./data/df_fluxnet.Rdata") ## PUE data (beni)
+load("./data/ddf_US-Ton_norainfilter.RData") 
+df_fluxnet <- ddf
+# df_fluxnet <- df_fluxnet %>% left_join(ddf, by = "date") ##for PUE
 ```
+
+## Time series 
+```{r}
+#ET
+ggplot(data = ddf, aes(x=date, y=ET)) +
+  geom_line() +
+  labs(x = "Time", y = "ET")
+dev.copy(png,'ET_timeseries.png', units="in", width=5, height=3, res=150)
+dev.off()
+
+#temperature
+ggplot(data = ddf, aes(x=date, y=TA_F_DAY)) +
+  geom_line() +
+  labs(x = "Time", y = "temp")
+dev.copy(png,'T_timeseries.png', units="in", width=5, height=3, res=150)
+dev.off()
+
+# #long wave
+# ggplot(data = ddf, aes(x=date, y=LW_OUT)) +
+#   geom_line() +
+#   labs(x = "Time", y = "long wave out")
+
+#NETRAD
+ggplot(data = ddf, aes(x=date, y=NETRAD)) +
+  geom_line() +
+  labs(x = "Time", y = "netrad")
+dev.copy(png,'netrad_timeseries.png', units="in", width=5, height=3, res=150)
+dev.off()
+
+#WS
+ggplot(data = ddf, aes(x=date, y=WS_F)) +
+  geom_line() +
+  labs(x = "Time", y = "Wind Speed")
+dev.copy(png,'WS_timeseries.png', units="in", width=5, height=3, res=150)
+dev.off()
+
+#precip
+ggplot(data = ddf, aes(x=date, y=P_F)) +
+  geom_line() +
+  labs(x = "Time", y = "Precipitation")
+dev.copy(png,'precip_timeseries.png', units="in", width=5, height=3, res=150)
+dev.off()
+
+#ustar
+ggplot(data = ddf, aes(x=date, y=USTAR)) +
+  geom_line() +
+  labs(x = "Time", y = "Friction Velocity")
+dev.copy(png,'ustar_timeseries.png', units="in", width=5, height=3, res=150)
+dev.off()
+
+#Soil T
+ggplot(data = ddf, aes(x=date, y=TS_F_MDS_1)) +
+  geom_line() +
+  labs(x = "Time", y = "Soil Temperature")
+dev.copy(png,'soilT_timeseries.png', units="in", width=5, height=3, res=150)
+dev.off()
+
+# d <- ggplot(data = ddf, aes(x=date)) +
+#   geom_line(aes(y = TS_F_MDS_1, color = "TS_F_MDS_1")) +
+#   geom_line(aes(y = TS_F_MDS_2, color = "TS_F_MDS_2")) +
+#   geom_line(aes(y = TS_F_MDS_3, color = "TS_F_MDS_3")) +
+#   labs(x = "Time", y = "Soil T", color = "Legend")
+# d #+  scale_color_manual(values = c("chartreuse","brown1","cornflowerblue"))
+
+# soil moisture
+ggplot(data = ddf, aes(x=date, y=SWC_F_MDS_1)) +
+  geom_line() +
+  labs(x = "Time", y = "Soil water content")
+dev.copy(png,'SM_timeseries.png', units="in", width=5, height=3, res=150)
+dev.off()
+
+# m <- ggplot(data = ddf, aes(x=date)) +
+#   geom_line(aes(y = SWC_F_MDS_1, color = "SWC_F_MDS_1")) +
+#   geom_line(aes(y = SWC_F_MDS_2, color = "SWC_F_MDS_2")) +
+#   labs(x = "Time", y = "mm/day", color = "Legend")
+# m #+  scale_color_manual(values = c("chartreuse","brown1","cornflowerblue"))
+
+# g <- ggplot(data = ddf, aes(x=date)) +
+#   geom_line(aes(y = SWC_F_MDS_4, color = "SWC_F_MDS_4")) +
+#   geom_line(aes(y = SWC_F_MDS_5, color = "SWC_F_MDS_5")) +
+#   geom_line(aes(y = SWC_F_MDS_6, color = "SWC_F_MDS_6")) +
+#   labs(x = "Time", y = "mm/day", color = "Legend")
+# g
+```
+
 
 ## Define settings
 
@@ -37,13 +127,14 @@ This named list is used by several functions of the package.
 #   dplyr::select( starts_with("SWC_") ) %>% 
 #   dplyr::select( -ends_with("QC") ) %>% 
 #   names()
+
 settings <- list( 
-  predictors    = c("TA_F_DAY","vpd_day", "netrad","WS_F", "P_F", "USTAR", "fpar", "TS_F_MDS_1"),
+  predictors    = c("TA_F_DAY","VPD_F_DAY", "NETRAD","WS_F", "P_F", "USTAR", "TS_F_MDS_1"),
   target        = "ET", 
-  varnams_soilm = "wcont_splash",
+  varnams_soilm = "SWC_F_MDS_1",
   rowid         = "date",
-  nnodes_pot    = 15,
-  nnodes_act    = 20,
+  nnodes_pot    = 1,
+  nnodes_act    = 1,
   nrep          = 3,
   package       = "nnet"
   )
@@ -63,37 +154,66 @@ The settings are a named list that must contain the following variables:
 
 To prepare training data, removing NAs and outliers, in a standardized way.
 ```{r}
-df_train <- prepare_trainingdata_fvar( df_fluxnet, settings )
+df_train <- prepare_trainingdata_fvar( df_fluxnet, settings ) # skip this step with keras?
 ```
 
 ## Train models and predict fvar
-
-Train models and get `fvar` (is returned as one column in the returned data frame). Here, we specify the soil moisture threshold to separate training data into moist and dry days to 0.6 (fraction of water holding capacity). Deriving an optimal threshold is implemented by the functions `profile_soilmthreshold_fvar()` and `get_opt_threshold()` (see below).
 ```{r eval = TRUE}
-out <- train_predict_fvar( 
+# KERAS
+out <- train_predict_fvar( # still need to use this function?
   df_train,
   settings,
-  soilm_threshold    = 0.6,
+  soilm_threshold    = 0.3,
   weights            = NA, 
   verbose = TRUE
   )
+
+save(out, file = "./data/out_US-Ton_norainfilter_keras.RData") 
 ```
 
-<!-- Do the training again using another set of soil moisture data from a model. -->
-<!-- ```{r eval=FALSE} -->
-<!-- settings$varnams_soilm <- "wcont_swbm" -->
+Train models and get `fvar` (is returned as one column in the returned data frame). Here, we specify the soil moisture threshold to separate training data into moist and dry days to 0.6 (fraction of water holding capacity). Deriving an optimal threshold is implemented by the functions `profile_soilmthreshold_fvar()` and `get_opt_threshold()` (see below).
+```{r eval = TRUE}
+# CARET
+out <- train_predict_fvar( 
+  df_train,
+  settings,
+  soilm_threshold    = 0.3,
+  weights            = NA, 
+  verbose = TRUE
+  )
 
-<!-- df_train <- prepare_trainingdata_fvar( df_fluxnet, settings ) -->
+save(out, file = "./data/out_FR-LBr_norainfilter.RData") 
+```
+  
+Do the training again using another set of soil moisture data from a model.
+```{r eval=FALSE}
+settings$varnams_soilm <- "wcont_swbm"
 
-<!-- df_nn <- train_predict_fvar(  -->
-<!--   df_train, -->
-<!--   settings, -->
-<!--   soilm_threshold    = 0.6,  -->
-<!--   weights            = NA, -->
-<!--   ) -->
-<!-- ``` -->
+df_train <- prepare_trainingdata_fvar( df_fluxnet, settings )
+
+out <- train_predict_fvar(
+  df_train,
+  settings,
+  soilm_threshold    = 0.6,
+  weights            = NA,
+  )
+```
 
 ## Test performance of NN models
+
+0. Plot time series of NN_act, NN_pot and obs
+```{r eval=FALSE}
+m <- ggplot(data = out$df_all, aes(x=date)) +
+  geom_line(aes(y = obs, color = "ET")) +
+  geom_line(aes(y = nn_act, color = "nn_act")) +
+  geom_line(aes(y = nn_pot, color = "nn_pot")) +
+  labs(x = "Time", y = "mm/day", color = "Legend")
+m +  scale_color_manual(values = c("chartreuse","brown1","cornflowerblue"))
+
+# save plot
+dev.copy(png,'ET_vs_nn.png', units="in", width=5, height=3, res=150)
+dev.off()
+```
 
 Multiple aspects need to be satisfied:
 
@@ -104,12 +224,17 @@ df_test <- out$df_all %>%
          bias_pot = nn_pot - obs,
          soilm_bin = cut(soilm, 10)
          ) 
+
 df_test %>% 
   tidyr::pivot_longer(cols = c(bias_act, bias_pot), names_to = "source", values_to = "bias") %>% 
   ggplot(aes(x = soilm_bin, y = bias, fill = source)) +
   geom_boxplot() +
   geom_hline(aes(yintercept = 0.0), linetype = "dotted") +
   labs(title = "Bias vs. soil moisture")
+
+# save plot
+dev.copy(png,'bias_act_pot.png', units="in", width=5, height=3, res=150)
+dev.off()
 ```
 
 This can be tested using a linear regression model of bias vs. soil moisture, testing whether the slope is significantly different from zero.
@@ -120,10 +245,15 @@ slope_mid <- testsum$coefficients["soilm","Estimate"]
 slope_se  <- testsum$coefficients["soilm","Std. Error"]
 passtest_bias_vs_soilm <- ((slope_mid - slope_se) < 0 && (slope_mid + slope_se) > 0)
 print(passtest_bias_vs_soilm)
+
 df_test %>% 
   ggplot(aes(x = soilm, y = bias_act)) +
   geom_point() +
   geom_smooth(method = "lm")
+
+# save plot
+dev.copy(png,'lm_bias_vs_soilmoisture.png', units="in", width=5, height=3, res=150)
+dev.off()
 ```
 
 2. NN$_\text{pot}$ and NN$_\text{act}$ have no bias during moist days.
@@ -134,9 +264,14 @@ df_test %>%
   ggplot(aes(y = bias, fill = source)) +
   geom_boxplot() +
   geom_hline(aes(yintercept = 0), linetype = "dotted")
+
 df_test %>% 
   dplyr::filter(moist) %>%
   summarise(bias_act = mean(bias_act, na.rm = TRUE), bias_pot = mean(bias_pot, na.rm = TRUE))
+
+# save plot
+dev.copy(png,'bias_nn_moistdays.png', units="in", width=5, height=3, res=150)
+dev.off()
 ```
 
 3. NN$_\text{pot}$ and NN$_\text{act}$ have a good predictive model performance (high *R*$^2$ and low RMSE measured on cross-validation resamples) during moist days.
@@ -147,12 +282,22 @@ out_modobs <- out$df_cv %>%
   rbeni::analyse_modobs2("nn_act", "obs", type = "heat")
 out_modobs$gg +
   labs(title = "NN act, moist days, CV")
+
+# save plot
+dev.copy(png,'scatter_nn_act-obs_moist.png', units="in", width=5, height=3, res=150)
+dev.off()
+
+
 ## NN pot
 out_modobs <- out$df_cv %>% 
   dplyr::filter(moist) %>% 
   rbeni::analyse_modobs2("nn_pot", "obs", type = "heat")
 out_modobs$gg +
   labs(title = "NN pot, moist days, CV")
+
+# save plot
+dev.copy(png,'scatter_nn_pot-obs_moist.png', units="in", width=5, height=3, res=150)
+dev.off()
 ```
 
 4. NN$_\text{act}$ has a good predictive model performance (high *R*$^2$ and low RMSE measured on cross-validation resamples) during dry days.
@@ -163,6 +308,10 @@ out_modobs <- out$df_cv %>%
   rbeni::analyse_modobs2("nn_act", "obs", type = "heat")
 out_modobs$gg +
   labs(title = "NN act, dry days, CV")
+
+# save plot
+dev.copy(png,'scatter_nn_act-obs_dry.png', units="in", width=5, height=3, res=150)
+dev.off()
 ```
 
 4. NN$_\text{pot}$ and NN$_\text{act}$ have a high agreement (high *R*$^2$ and low RMSE) during moist days.
@@ -172,6 +321,11 @@ out_modobs <- out$df_all %>%
   dplyr::filter(moist) %>% 
   rbeni::analyse_modobs2("nn_pot", "nn_act", type = "heat")
 out_modobs$gg
+
+# save plot
+dev.copy(png,'scatter_nn_act-pot_all.png', units="in", width=5, height=3, res=150)
+dev.off()
+
 # ## based on CV
 # out_modobs <- out$df_cv %>% 
 #   dplyr::filter(moist) %>% 
@@ -179,56 +333,55 @@ out_modobs$gg
 # out_modobs$gg
 ```
 
-**TO BE COMPLETED ALL BELOW**
 
-<!-- All above steps are implemented by function `test_performance_fvar()` which returns a list of all ggplot objects and a data frame with evaluation results for each of the three tests. -->
-<!-- ```{r} -->
-<!-- testresults_fvar <- test_performance_fvar(df_nn_soilm_obs, settings) -->
-<!-- ``` -->
+All above steps are implemented by function `test_performance_fvar()` which returns a list of all ggplot objects and a data frame with evaluation results for each of the three tests.
+```{r}
+testresults_fvar <- test_performance_fvar(out$df_all, settings)
+```
 
-<!-- ## Get optimal soil moisture threshold -->
+## Get optimal soil moisture threshold
 
-<!-- The two steps above (train/predict and performance evaluation) are executed for a set of soil moisture thresholds. The optimal threshold is then selected based on the different performance criteria. -->
+The two steps above (train/predict and performance evaluation) are executed for a set of soil moisture thresholds. The optimal threshold is then selected based on the different performance criteria.
 
-<!-- First, run the fvar algorithm for a set of soil moisture thresholds and record performance metrics for each round. -->
-<!-- ```{r eval=FALSE} -->
-<!-- df_profile_performance <- profile_soilmthreshold_fvar( -->
-<!--   df_train, -->
-<!--   settings, -->
-<!--   weights = NA, -->
-<!--   len = 4 -->
-<!--   ) -->
-<!-- ``` -->
+First, run the fvar algorithm for a set of soil moisture thresholds and record performance metrics for each round.
+```{r eval=FALSE}
+df_profile_performance <- profile_soilmthreshold_fvar(
+  df_train,
+  settings,
+  weights = NA,
+  len = 4
+  )
+```
 
-<!-- Select best threshold as described in Stocker et al. (2018). Their procedure was as follows: -->
+Select best threshold as described in Stocker et al. (2018). Their procedure was as follows:
 
-<!-- 1. Determine the difference in the bias of NN$_\text{pot}$ between dry and moist days and select the three (originally used five) thresholds with the greatest difference. -->
-<!-- 2. Determine RMSE of NNpot vs. NNact during moist days and take the threshold where it's minimised -->
-<!-- ```{r} -->
-<!-- purrr::map(df_profile_performance, "df_metrics") %>%  -->
-<!--   bind_rows(.id = "threshold") %>%  -->
-<!--   arrange(-diff_ratio_dry_moist) %>%  -->
-<!--   slice(1:3) %>%  -->
-<!--   arrange(rmse_nnpot_nnact_moist) %>%  -->
-<!--   slice(1) %>%  -->
-<!--   pull(threshold) %>%  -->
-<!--   as.numeric() -->
-<!-- ``` -->
+1. Determine the difference in the bias of NN$_\text{pot}$ between dry and moist days and select the three (originally used five) thresholds with the greatest difference.
+2. Determine RMSE of NNpot vs. NNact during moist days and take the threshold where it's minimised
+```{r}
+purrr::map(df_profile_performance, "df_metrics") %>%
+  bind_rows(.id = "threshold") %>%
+  arrange(-diff_ratio_dry_moist) %>%
+  slice(1:3) %>%
+  arrange(rmse_nnpot_nnact_moist) %>%
+  slice(1) %>%
+  pull(threshold) %>%
+  as.numeric()
+```
 
-<!-- This is implemented by a function: -->
-<!-- ```{r} -->
-<!-- get_opt_threshold(df_profile_performance) -->
-<!-- ``` -->
+This is implemented by a function:
+```{r}
+get_opt_threshold(df_profile_performance)
+```
 
-<!-- Repeat the fvar algorithm with optimal threshold. -->
-<!-- ```{r} -->
-<!-- df_nn <- train_predict_fvar(  -->
-<!--   df_train, -->
-<!--   settings, -->
-<!--   soilm_threshold = get_opt_threshold(df_profile_performance), -->
-<!--   weights         = NA -->
-<!--   ) -->
-<!-- ``` -->
+Repeat the fvar algorithm with optimal threshold.
+```{r}
+df_nn <- train_predict_fvar(
+  df_train,
+  settings,
+  soilm_threshold = get_opt_threshold(df_profile_performance),
+  weights         = NA
+  )
+```
 
 <!-- <!-- I tried a different approach, too: --> -->
 
