@@ -10,9 +10,23 @@ output:
 ---
 
 ```{r}
+# before opening RStudio, do in terminal: conda activate r-reticulate
+
 devtools::load_all(".")
-library(rsofun)
 library(tidyverse)
+library(caret)
+
+library(reticulate)
+use_condaenv("r-reticulate")
+
+library(tensorflow)
+# install_tensorflow(method = "conda", conda = reticulate::conda_binary(), envname = "r-reticulate")
+
+library(keras)
+# install_keras(method = "conda", conda = reticulate::conda_binary(), envname = "r-reticulate")
+## -------
+
+is_keras_available()
 ```
 
 ## Usage example

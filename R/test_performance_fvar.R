@@ -1,15 +1,15 @@
 test_performance_fvar <- function(df, settings){
   
-  ## rename soil moisture column to 'soilm'
-  df$soilm <- df[[ settings$varnams_soilm ]]
+  # ## rename soil moisture column to 'soilm'
+  # df$soilm <- df[[ settings$varnams_soilm ]]
 
   ## 1. NNact has no systematic bias related to the level of soil moisture.
   df <- df %>% 
-    mutate(bias_act = nn_act - GPP_NT_VUT_REF,
-           bias_pot = nn_pot - GPP_NT_VUT_REF,
+    mutate(bias_act = nn_act - obs,
+           bias_pot = nn_pot - obs,
            soilm_bin = cut(soilm, 10),
-           ratio_act = nn_act / GPP_NT_VUT_REF,
-           ratio_pot = nn_pot / GPP_NT_VUT_REF
+           ratio_act = nn_act / obs,
+           ratio_pot = nn_pot / obs
           ) 
   
   gg_boxplot_bias_vs_soilm <- df %>% 
@@ -19,7 +19,7 @@ test_performance_fvar <- function(df, settings){
     geom_hline(aes(yintercept = 0.0), linetype = "dotted") +
     labs(title = "Bias vs. soil moisture")
   
-  ## test wether slope is significantly different from zero (0 is within slope estimate +/- standard error of slope estimate)
+  ## test whether slope is significantly different from zero (0 is within slope estimate +/- standard error of slope estimate)
   linmod <- lm(bias_act ~ soilm, data = df)
   testsum <- summary(linmod)
   slope_mid <- testsum$coefficients["soilm","Estimate"]
@@ -47,6 +47,7 @@ test_performance_fvar <- function(df, settings){
     dplyr::filter(moist) %>%
     summarise(bias_moist_act = mean(bias_act, na.rm = TRUE), bias_moist_pot = mean(bias_pot, na.rm = TRUE))
   
+  ## record for output
   df_out <- df_out %>% 
     bind_cols(., df_bias_moist)
   
@@ -61,7 +62,7 @@ test_performance_fvar <- function(df, settings){
            nnpot_vs_nnact_moist_slope = out_modobs_act_pot$df_metrics %>% filter(.metric=="slope") %>% pull(.estimate))
   
   ## 4. Fit of NN$_\text{act}$ vs. observed (target) values.
-  out_modobs <- df %>% rbeni::analyse_modobs2("nn_act", "GPP_NT_VUT_REF", type = "heat")
+  out_modobs <- df %>% rbeni::analyse_modobs2("nn_act", "obs", type = "heat")
 
   df_out <- df_out %>% 
     mutate(mod_vs_obs_rsq   = out_modobs$df_metrics %>% filter(.metric=="rsq")   %>% pull(.estimate),
