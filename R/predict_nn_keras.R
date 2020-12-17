@@ -1,4 +1,4 @@
-predict_nn_keras <- function(df, nam_target, predictors, prop){
+predict_nn <- function(df, nam_target, predictors, prop){
 
   ## First shuffle the dataset
   df_shffld <- df[sample(nrow(df)),]
