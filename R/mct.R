@@ -6,7 +6,7 @@ mct <- function(df, varname_wbal, varname_date, thresh_terminate = 0.0, thresh_d
     
   inst <- tibble()
   idx <- 0
-  iinst <- 1
+  iinst <- 1 #CWD event
   
   df <- df %>% 
     ungroup() %>% 

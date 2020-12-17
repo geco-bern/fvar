@@ -4,7 +4,7 @@
 #' @param settings A character string defining which variable (column name in \code{df}) is to be used as target variable.
 #' 
 train_predict_fvar <- function( df, settings, soilm_threshold, weights=NA, plot=FALSE, verbose = FALSE ){
-
+  
   ##------------------------------------------------
   ## Determine "moist days", i.e. where soil moisture is above threshold.
   ## Get respective indices.
@@ -15,15 +15,15 @@ train_predict_fvar <- function( df, settings, soilm_threshold, weights=NA, plot=
   
   ## simple
   idxs_moist <- which( df[[settings$varnams_soilm]] > soilm_threshold )
-
+  
   ## identify and record moist days for this threshold
   vec_moist <- rep( NA, nrow(df) )
   vec_moist[idxs_moist]  <- TRUE
   vec_moist[-idxs_moist] <- FALSE
-
+  
   ## If no weights are specified, use 1 for all data points
   if (is.na(weights)) weights <- rep( 1.0, nrow(df) )
-
+  
   ##------------------------------------------------
   ## Loop and aggregate over repetitions
   ##------------------------------------------------
@@ -37,8 +37,8 @@ train_predict_fvar <- function( df, settings, soilm_threshold, weights=NA, plot=
       weights = weights, 
       plot = FALSE,
       verbose = verbose 
-      )
     )
+  )
   
   names(out) <- paste0("rep", seq(settings$nrep))
   
@@ -49,7 +49,7 @@ train_predict_fvar <- function( df, settings, soilm_threshold, weights=NA, plot=
       nn_pot = mean(nn_pot, na.rm = TRUE),
       nn_act = mean(nn_act, na.rm = TRUE),
       fvar   = mean(nn_fxx, na.rm = TRUE)
-      ) %>%
+    ) %>%
     dplyr::mutate(moist = vec_moist) %>%
     dplyr::mutate(fvar = remove_outliers_fXX(fvar, coef=3.0 )) %>% 
     
@@ -75,7 +75,7 @@ train_predict_fvar <- function( df, settings, soilm_threshold, weights=NA, plot=
       obs    = mean(obs)
     ) %>%
     dplyr::mutate(moist = vec_moist)
-
+  
   ## return only models from first repetitions
   return( list(nn_act = out$rep1$nn_act, nn_pot = out$rep1$nn_moist, df_all = df_all, df_cv = df_cv) )
 }
@@ -157,7 +157,7 @@ train_predict_fvar_byrep <- function( irep, df, idxs_moist, settings, weights=NA
     #   plot.title = "NN act", 
     #   do.plot    = plot
     # )
-
+    
     ##------------------------------------------------
     ## Construct data frame from validation results
     ##------------------------------------------------
@@ -167,7 +167,7 @@ train_predict_fvar_byrep <- function( irep, df, idxs_moist, settings, weights=NA
                   dplyr::select(settings$rowid) %>% 
                   mutate(idx_act = 1:n()),
                 by = "idx_act")
-
+    
     df_cv_pot <- out_nn_moist$df_cv %>%
       setNames(paste0(names(.), "_pot")) %>% 
       left_join(df[ idxs_moist, ] %>% 
@@ -185,7 +185,7 @@ train_predict_fvar_byrep <- function( irep, df, idxs_moist, settings, weights=NA
     
     out_nn_act$df_cv <- NULL
     out_nn_moist$df_cv <- NULL
-        
+    
     ##------------------------------------------------
     ## Construct predictions data frame with all
     ##------------------------------------------------
@@ -195,7 +195,7 @@ train_predict_fvar_byrep <- function( irep, df, idxs_moist, settings, weights=NA
       nn_act = as.vector(out_nn_act$df_all$pred),
       nn_fxx = as.vector(out_nn_act$df_all$pred) / as.vector(out_nn_pot$df_all$pred),
       irep   = irep
-      ) %>% 
+    ) %>% 
       mutate(idx = 1:n())
     
     ## rename row ID
@@ -211,7 +211,7 @@ train_predict_fvar_byrep <- function( irep, df, idxs_moist, settings, weights=NA
       nn_act = NA,
       nn_fxx = NA,
       irep   = irep
-      ) %>% 
+    ) %>% 
       mutate(idx = 1:n())
     
     ## rename row ID
@@ -219,9 +219,8 @@ train_predict_fvar_byrep <- function( irep, df, idxs_moist, settings, weights=NA
     
   }
   
-  return(list(df_all = df_all, df_cv = df_cv, nn_act = out_nn_act, nn_moist = out_nn_moist))  
+  return(list(df_all = df_all, df_cv = df_cv, nn_act = out_nn_act, nn_moist = out_nn_moist))	
   
 }
-
 
 
