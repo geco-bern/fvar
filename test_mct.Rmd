@@ -1,0 +1,80 @@
+---
+title: "Testing mct"
+author: "Beni Stocker"
+date: "2/24/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(lubridate)
+load("data/AU-ASM_flue_errorCWD.RData")
+ddf <- ddf %>% as_tibble()
+source("~/mct/R/mct2.R")  # get this from https://github.com/stineb/mct/blob/master/R/mct2.R
+```
+
+
+```{r}
+## look at data frame
+ddf
+
+## plot precip
+ddf %>% 
+  ggplot(aes(x = date, y = P_F)) +
+  geom_line()
+
+## plot ET
+ddf %>% 
+  ggplot(aes(x = date, y = ET)) +
+  geom_line()
+
+## plot ET vs LE => almost perfectly linear
+ddf %>% 
+  ggplot(aes(x = LE_F_MDS, y = ET)) +
+  geom_point()
+
+## average annual ET and P => looks reasonable: P > ET
+ddf %>% 
+  mutate(year = lubridate::year(date)) %>% 
+  group_by(year) %>% 
+  summarise(precip = sum(P_F), et = sum(ET)) %>% 
+  summarise_all(mean) %>% 
+  dplyr::select(-year)
+
+## any missing values? No -> ok
+any(is.na(ddf$P_F))
+any(is.na(ddf$ET))
+
+## any missing dates? => only last date missing -> shouldn't be a problem
+date_range <- seq(min(ddf$date), max(ddf$date), by = 1) 
+date_range[!date_range %in% ddf$date] 
+```
+
+Water deficits are defined as negative numbers (positive numbers are a water surplus).
+```{r}
+ddf <- ddf %>% 
+  mutate(bal = P_F - ET)
+```
+
+Apply mct function.
+```{r}
+out <- mct(ddf, "bal", "date", thresh_terminate = 0.0, thresh_drop = 0.9)
+```
+
+Look at CWD time series. => this doesn't look exactly the same as yours.
+```{r}
+ggplot() +
+  geom_rect(
+    data=out$inst, 
+    aes(xmin=date_start, xmax=date_end, ymin=-99, ymax=99999), 
+    fill=rgb(0,0,0,0.3), 
+    color=NA) +
+  geom_line(data = out$df, aes(date, P_F), size = 0.3, color="royalblue") +
+  geom_line(data = out$df, aes(date, deficit), color="tomato") +
+  geom_line(data = out$df, aes(date, ET)) +
+  coord_cartesian(ylim=c(0, 100)) +
+  theme_classic() +
+  labs(subtitle = "red: CWD, blue: precip, black: ET", x = "Date", y = "(mm)")
+```
+
+Note that the grey bars represent *instances*.
