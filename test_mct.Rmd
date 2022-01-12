@@ -8,7 +8,7 @@ output: html_document
 ```{r setup, include=FALSE}
 library(tidyverse)
 library(lubridate)
-load("data/AU-ASM_flue_errorCWD.RData")
+load("data/ddf_CH-Dav.RData")
 ddf <- ddf %>% as_tibble()
 source("~/mct/R/mct2.R")  # get this from https://github.com/stineb/mct/blob/master/R/mct2.R
 ```
@@ -72,7 +72,7 @@ ggplot() +
   geom_line(data = out$df, aes(date, P_F), size = 0.3, color="royalblue") +
   geom_line(data = out$df, aes(date, deficit), color="tomato") +
   geom_line(data = out$df, aes(date, ET)) +
-  coord_cartesian(ylim=c(0, 100)) +
+  coord_cartesian(ylim=c(0, 100), xlim = c(lubridate::ymd("2007-01-01"), lubridate::ymd("2011-01-01"))) +
   theme_classic() +
   labs(subtitle = "red: CWD, blue: precip, black: ET", x = "Date", y = "(mm)")
 ```
