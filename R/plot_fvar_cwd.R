@@ -1,4 +1,5 @@
 library(tidyverse)
+library(ingestr)
 
 load("~/Downloads/plot_allsites_raw.RData")
 
@@ -47,7 +48,7 @@ agg_plot_by_site <- function(df, sitename, nbin = 30){
 ## apply this to all sites
 list_agg_plot <- purrr::map(
   as.list(all_sites),
-  ~agg_plot_by_site(plot_allsites_raw, ., nbin = 20)
+  ~agg_plot_by_site(plot_allsites_raw, ., nbin = 12)
 )
 
 ## plot with all lines
@@ -71,3 +72,39 @@ list_agg_plot[[3]]$gg
 list_agg_plot[[4]]$gg
 list_agg_plot[[5]]$gg
 list_agg_plot[[6]]$gg
+
+
+## Is the fET-CWD response related to CWDX80 (rooting zone water storage capacity estimated by Beni)?
+## extract CWDX80
+dfs <- siteinfo_fluxnet2015 %>% 
+  dplyr::filter(sitename %in% all_sites)
+
+rasta <- raster::raster("~/data/mct_data/cwdx80.nc")  # is on Euler
+dfs <- raster::extract(
+  rasta,
+  sp::SpatialPoints(dplyr::select(dfs, lon, lat)),
+  sp = TRUE
+  ) %>%
+  as_tibble() %>% 
+  rename(cwdx80 = NA.) %>% 
+  right_join(
+    dfs,
+    by = c("lon", "lat")
+  )
+
+df_agg <- df_agg %>% 
+  left_join(
+    dfs,
+    by = "sitename"
+  )
+
+## use cwdx80 to plot color
+df_agg %>% 
+  ggplot() +
+  geom_line(aes(cwd_mid, fvar_mean, group = sitename, color = cwdx80)) +
+  scale_color_viridis_c(option = "E", direction = -1) +
+  ylim(0, 1.2) +
+  geom_hline(yintercept = 1.0, linetype = "dotted") +
+  theme_classic() +
+  labs(title = "All sites", x = "CWD (mm)", y = "fET")
+
