@@ -94,31 +94,31 @@ train_predict_fvar_byrep <- function( irep, df, idxs_moist, settings, weights=NA
     # settings$varnams_soilm <- df %>% dplyr::select( starts_with("soilm") ) %>% names()
     settings$predictors_without_soilm <- settings$predictors[ !(settings$predictors %in% settings$varnams_soilm) ]
     
-    # out_nn_moist <- predict_nn( 
-    #   data       = df[ idxs_moist, ],
-    #   weights    = weights[ idxs_moist ],
-    #   predictors = settings$predictors_without_soilm,
-    #   nam_target = settings$target,
-    #   do_predict = TRUE,
-    #   package    = settings$package,
-    #   lifesign   = "full",
-    #   seed       = irep,
-    #   hidden     = settings$nnodes_pot
-    # )
+    out_nn_moist <- predict_nn(
+      data       = df[ idxs_moist, ],
+      weights    = weights[ idxs_moist ],
+      predictors = settings$predictors_without_soilm,
+      nam_target = settings$target,
+      do_predict = TRUE,
+      package    = settings$package,
+      lifesign   = "full",
+      seed       = irep,
+      hidden     = settings$nnodes_pot
+    )
 
-    ## xxx try keras-specific. To do: make this function call flexible
-    out_nn_moist <- predict_nn_keras( df[ idxs_moist, ], 
-                                      nam_target          = settings$target, 
-                                      predictors          = settings$predictors_without_soilm, 
-                                      prop                = 0.75, # make this a setting
-                                      num_epochs          = 100, 
-                                      batch_size          = 128, 
-                                      val_size            = 0.15,
-                                      learning_rate       = 0.001,
-                                      num_layers          = 3,
-                                      num_units_per_layer = 8,  # settings$nnodes_pot,
-                                      print_model_summary = FALSE
-                                      )
+    # ## xxx try keras-specific. To do: make this function call flexible
+    # out_nn_moist <- predict_nn_keras( df[ idxs_moist, ], 
+    #                                   nam_target          = settings$target, 
+    #                                   predictors          = settings$predictors_without_soilm, 
+    #                                   prop                = 0.75, # make this a setting
+    #                                   num_epochs          = 100, 
+    #                                   batch_size          = 128, 
+    #                                   val_size            = 0.15,
+    #                                   learning_rate       = 0.001,
+    #                                   num_layers          = 3,
+    #                                   num_units_per_layer = 8,  # settings$nnodes_pot,
+    #                                   print_model_summary = FALSE
+    #                                   )
 
     
     # ## Evaluate predictions of good days model
