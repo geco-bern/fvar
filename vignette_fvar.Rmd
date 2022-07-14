@@ -13,7 +13,6 @@ output:
 devtools::load_all(".")
 library(tidyverse)
 library(caret)
-library(rbeni)
 ```
 
 ## Usage example
@@ -31,11 +30,6 @@ load("./data/df_fluxnet.Rdata")
 
 This named list is used by several functions of the package.
 ```{r}
-# ## use all observational soil moisture data
-# varnams_soilm <- df_fluxnet %>% 
-#   dplyr::select( starts_with("SWC_") ) %>% 
-#   dplyr::select( -ends_with("QC") ) %>% 
-#   names()
 settings <- list( 
   target        = "GPP_NT_VUT_REF", 
   predictors    = c("temp_day","vpd_day", "ppfd", "fpar", "swin", "netrad"), 
@@ -43,7 +37,7 @@ settings <- list(
   rowid         = "date",
   nnodes_pot    = 15,
   nnodes_act    = 20,
-  nrep          = 3,
+  nrep          = 1,
   package       = "nnet"
   )
 ```
@@ -78,19 +72,7 @@ out <- train_predict_fvar(
   )
 ```
 
-<!-- Do the training again using another set of soil moisture data from a model. -->
-<!-- ```{r eval=FALSE} -->
-<!-- settings$varnams_soilm <- "wcont_swbm" -->
 
-<!-- df_train <- prepare_trainingdata_fvar( df_fluxnet, settings ) -->
-
-<!-- df_nn <- train_predict_fvar(  -->
-<!--   df_train, -->
-<!--   settings, -->
-<!--   soilm_threshold    = 0.6,  -->
-<!--   weights            = NA, -->
-<!--   ) -->
-<!-- ``` -->
 
 ## Test performance of NN models
 
@@ -138,228 +120,4 @@ df_test %>%
   summarise(bias_act = mean(bias_act, na.rm = TRUE), bias_pot = mean(bias_pot, na.rm = TRUE))
 ```
 
-3. NN$_\text{pot}$ and NN$_\text{act}$ have a good predictive model performance (high *R*$^2$ and low RMSE measured on cross-validation resamples) during moist days.
-```{r}
-## NN act
-out_modobs <- out$df_cv %>% 
-  dplyr::filter(moist) %>% 
-  rbeni::analyse_modobs2("nn_act", "obs", type = "heat")
-out_modobs$gg +
-  labs(title = "NN act, moist days, CV")
-## NN pot
-out_modobs <- out$df_cv %>% 
-  dplyr::filter(moist) %>% 
-  rbeni::analyse_modobs2("nn_pot", "obs", type = "heat")
-out_modobs$gg +
-  labs(title = "NN pot, moist days, CV")
-```
 
-4. NN$_\text{act}$ has a good predictive model performance (high *R*$^2$ and low RMSE measured on cross-validation resamples) during dry days.
-```{r}
-## based on CV
-out_modobs <- out$df_cv %>% 
-  dplyr::filter(!moist) %>% 
-  rbeni::analyse_modobs2("nn_act", "obs", type = "heat")
-out_modobs$gg +
-  labs(title = "NN act, dry days, CV")
-```
-
-4. NN$_\text{pot}$ and NN$_\text{act}$ have a high agreement (high *R*$^2$ and low RMSE) during moist days.
-```{r}
-## based on all
-out_modobs <- out$df_all %>% 
-  dplyr::filter(moist) %>% 
-  rbeni::analyse_modobs2("nn_pot", "nn_act", type = "heat")
-out_modobs$gg
-# ## based on CV
-# out_modobs <- out$df_cv %>% 
-#   dplyr::filter(moist) %>% 
-#   rbeni::analyse_modobs2("nn_pot", "nn_act", type = "heat")
-# out_modobs$gg
-```
-
-**TO BE COMPLETED ALL BELOW**
-
-<!-- All above steps are implemented by function `test_performance_fvar()` which returns a list of all ggplot objects and a data frame with evaluation results for each of the three tests. -->
-<!-- ```{r} -->
-<!-- testresults_fvar <- test_performance_fvar(df_nn_soilm_obs, settings) -->
-<!-- ``` -->
-
-<!-- ## Get optimal soil moisture threshold -->
-
-<!-- The two steps above (train/predict and performance evaluation) are executed for a set of soil moisture thresholds. The optimal threshold is then selected based on the different performance criteria. -->
-
-<!-- First, run the fvar algorithm for a set of soil moisture thresholds and record performance metrics for each round. -->
-<!-- ```{r eval=FALSE} -->
-<!-- df_profile_performance <- profile_soilmthreshold_fvar( -->
-<!--   df_train, -->
-<!--   settings, -->
-<!--   weights = NA, -->
-<!--   len = 4 -->
-<!--   ) -->
-<!-- ``` -->
-
-<!-- Select best threshold as described in Stocker et al. (2018). Their procedure was as follows: -->
-
-<!-- 1. Determine the difference in the bias of NN$_\text{pot}$ between dry and moist days and select the three (originally used five) thresholds with the greatest difference. -->
-<!-- 2. Determine RMSE of NNpot vs. NNact during moist days and take the threshold where it's minimised -->
-<!-- ```{r} -->
-<!-- purrr::map(df_profile_performance, "df_metrics") %>%  -->
-<!--   bind_rows(.id = "threshold") %>%  -->
-<!--   arrange(-diff_ratio_dry_moist) %>%  -->
-<!--   slice(1:3) %>%  -->
-<!--   arrange(rmse_nnpot_nnact_moist) %>%  -->
-<!--   slice(1) %>%  -->
-<!--   pull(threshold) %>%  -->
-<!--   as.numeric() -->
-<!-- ``` -->
-
-<!-- This is implemented by a function: -->
-<!-- ```{r} -->
-<!-- get_opt_threshold(df_profile_performance) -->
-<!-- ``` -->
-
-<!-- Repeat the fvar algorithm with optimal threshold. -->
-<!-- ```{r} -->
-<!-- df_nn <- train_predict_fvar(  -->
-<!--   df_train, -->
-<!--   settings, -->
-<!--   soilm_threshold = get_opt_threshold(df_profile_performance), -->
-<!--   weights         = NA -->
-<!--   ) -->
-<!-- ``` -->
-
-<!-- <!-- I tried a different approach, too: --> -->
-
-<!-- <!-- Select best threshold, based on the different criteria.  --> -->
-<!-- <!-- ```{r} --> -->
-<!-- <!-- calc_inverse <- function(x){1/x} --> -->
-<!-- <!-- calc_inverse_absdiff_to_one <- function(x){1/abs(x-1)} --> -->
-
-<!-- <!-- df_profile_summary <- df_profile_performance %>%  --> -->
-
-<!-- <!--   ## small bias --> -->
-<!-- <!--   mutate_at(vars(starts_with("bias")), list(abs)) %>%  --> -->
-
-<!-- <!--   ## small value is good -> take the inverse --> -->
-<!-- <!--   mutate_at(vars(ends_with("rmse")), list(calc_inverse)) %>%  --> -->
-
-<!-- <!--   ## small difference to one is good --> -->
-<!-- <!--   mutate_at(vars(ends_with("slope")), list(calc_inverse_absdiff_to_one)) %>%  --> -->
-<!-- <!--   mutate_at(vars(starts_with("slope")), list(calc_inverse_absdiff_to_one)) %>%  --> -->
-
-<!-- <!--   ## center and scale all  --> -->
-<!-- <!--   mutate_at(c(1, 3:10), list(scale)) %>%  --> -->
-<!-- <!--   t() --> -->
-
-<!-- <!-- df_profile_summary <- df_profile_summary %>%  --> -->
-<!-- <!--   as_tibble() %>%  --> -->
-<!-- <!--   setNames(as.character(paste0("thresh_", df_profile_summary["threshold",]))) %>%  --> -->
-<!-- <!--   filter_all(all_vars(!is.nan(.))) %>%  --> -->
-<!-- <!--   summarise_all(sum, nan.rm=TRUE) --> -->
-<!-- <!-- ``` --> -->
-
-<!-- ## Evaluations and visualisations -->
-
-<!-- ### Identify soil moisture droughts -->
-
-<!-- Optional: aggregate fvar derived from different soil moisture datasets -->
-<!-- ```{r eval = FALSE} -->
-<!-- df_nn_multiplesoilmsources <- bind_rows( df_nn_soilm_obs, df_nn_soilm_obs ) %>%  -->
-<!--   group_by( date ) %>% -->
-<!--   summarise(  -->
-<!--     fvar       = mean( fvar, na.rm=TRUE ),  -->
-<!--     fvar_min   = min(  fvar, na.rm=TRUE ), -->
-<!--     fvar_max   = max(  fvar, na.rm=TRUE ),  -->
-<!--     fvar_med   = median(  fvar, na.rm=TRUE ),  -->
-<!--     nn_pot = mean( nn_pot, na.rm=TRUE ),  -->
-<!--     nn_act = mean( nn_act, na.rm=TRUE ) -->
-<!--     ) %>% -->
-<!--   left_join( select_( df_fluxnet, "date", settings$target ), by = "date" ) -->
-<!-- ``` -->
-
-<!-- Determine drought events based on fvar. -->
-<!-- ```{r} -->
-<!-- out_droughts <- get_droughts_fvar(  -->
-<!--   df_nn,  -->
-<!--   nam_target     = settings$target,  -->
-<!--   leng_threshold = 10,  -->
-<!--   df_soilm       = select(df_fluxnet, date, soilm=wcont_swbm), -->
-<!--   df_par         = select(df_fluxnet, date, par=ppfd), -->
-<!--   par_runmed     = 10 -->
-<!--   ) -->
-<!-- ``` -->
-
-<!-- Plot time series of fvar and highlight drought events. -->
-<!-- ```{r} -->
-<!-- ggplot() + -->
-<!--   geom_rect( -->
-<!--     data=out_droughts$droughts,  -->
-<!--     aes(xmin=date_start, xmax=date_end, ymin=-99, ymax=99),  -->
-<!--     fill=rgb(0,0,0,0.3),  -->
-<!--     color=NA) +  -->
-<!--   geom_line(data=out_droughts$df_nn, aes(date, fvar_smooth_filled)) + -->
-<!--   coord_cartesian(ylim=c(0, 1.2)) -->
-<!-- ``` -->
-
-<!-- ### Align data by droughts -->
-
-<!-- After having determined drought events above, "align" data by the day of drought onset and aggregate data across multiple drought instances. -->
-<!-- ```{r} -->
-<!-- dovars <- c("GPP_NT_VUT_REF", "fvar", "soilm", "nn_pot", "nn_act") -->
-<!-- df_nn <- out_droughts$df_nn %>% mutate(site="FR-Pue") -->
-<!-- df_alg <- align_events(  -->
-<!--   select( df_nn, site, date, one_of(dovars)),  -->
-<!--   select( df_nn, site, date, isevent=is_drought_byvar_recalc ), -->
-<!--   dovars, -->
-<!--   do_norm=FALSE, -->
-<!--   leng_threshold=10,  -->
-<!--   before=20, after=80, nbins=10 -->
-<!--   ) -->
-<!-- ``` -->
-
-
-<!-- Visualise data aggregated by drought events. -->
-<!-- ```{r} -->
-<!-- df_alg$df_dday_agg_inst_site %>%  -->
-<!--   ggplot(aes(dday, fvar_median)) + -->
-<!--   geom_ribbon(aes(ymin=fvar_q33, ymax=fvar_q66), fill="grey70") + -->
-<!--   geom_line() + -->
-<!--   geom_vline(xintercept=0, linetype="dotted") + -->
-<!--   ylim(0,1) +  -->
-<!--   labs(title = "fVAR") -->
-
-<!-- median <- df_alg$df_dday_agg_inst_site %>% -->
-<!--   select(dday, nn_pot=nn_pot_median, nn_act=nn_act_median, gpp_obs=GPP_NT_VUT_REF_median) %>%  -->
-<!--   tidyr::gather(model, var_nn_median, c(gpp_obs, nn_pot, nn_act)) -->
-
-<!-- q33 <- df_alg$df_dday_agg_inst_site %>% -->
-<!--   select(dday, nn_pot=nn_pot_q33, nn_act=nn_act_q33, gpp_obs=GPP_NT_VUT_REF_q33) %>%  -->
-<!--   tidyr::gather(model, var_nn_q33, c(gpp_obs, nn_pot, nn_act)) -->
-
-<!-- q66 <- df_alg$df_dday_agg_inst_site %>% -->
-<!--   select(dday, nn_pot=nn_pot_q66, nn_act=nn_act_q66, gpp_obs=GPP_NT_VUT_REF_q66) %>%  -->
-<!--   tidyr::gather(model, var_nn_q66, c(gpp_obs, nn_pot, nn_act)) -->
-
-<!-- df_tmp <- median %>%  -->
-<!--   left_join(q33, by=c("dday", "model")) %>%  -->
-<!--   left_join(q66, by=c("dday", "model")) -->
-
-<!-- df_tmp %>%  -->
-<!--   ggplot(aes(dday, var_nn_median, color=model)) + -->
-<!--   geom_line() + -->
-<!--   geom_ribbon(aes(ymin=var_nn_q33, ymax=var_nn_q66, fill=model), alpha=0.3, color=NA) + -->
-<!--   geom_vline(xintercept=0, linetype="dotted") + -->
-<!--   labs( -->
-<!--     title = "GPP",  -->
-<!--     subtitle = "Observation and models", -->
-<!--     x="dday", y="GPP (g C m-2 d-1)") + -->
-<!--   scale_color_discrete( -->
-<!--     name="Model",  -->
-<!--     breaks=c("transp_obs", "nn_act", "nn_pot"), -->
-<!--     labels=c("Observed", expression(NN[act]), expression(NN[pot])) ) + -->
-<!--   scale_fill_discrete( -->
-<!--     name="Model",  -->
-<!--     breaks=c("transp_obs", "nn_act", "nn_pot"), -->
-<!--     labels=c("Observed", expression(NN[act]), expression(NN[pot])) ) -->
-<!-- ``` -->
