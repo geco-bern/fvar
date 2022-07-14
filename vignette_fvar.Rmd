@@ -37,7 +37,7 @@ settings <- list(
   rowid         = "date",
   nnodes_pot    = 15,
   nnodes_act    = 20,
-  nrep          = 1,
+  nrep          = 3,
   package       = "nnet"
   )
 ```
