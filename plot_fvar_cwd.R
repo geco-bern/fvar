@@ -3,8 +3,8 @@ library(ingestr)
 
 load("data/plot_allsites_raw.RData")
 
-all_sites <- plot_allsites_raw$name_site %>% 
-  unique()
+#all_sites <- plot_allsites_raw$name_site %>% 
+  #unique()
 
 agg_plot_by_site <- function(df, sitename, nbin = 30){
   
