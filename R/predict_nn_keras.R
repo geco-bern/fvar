@@ -23,6 +23,8 @@ predict_nn_keras <- function(df,
   ind <- sample(2, nrow(df_shffld), replace=TRUE, prob = c(prop,(1-prop))) 
   idx <- which(ind == 1) #get the positions of the train points 
 
+  ## use createFolds to generate indices for cross validation
+
   ##---------------------------------------
   ## Train, given indices for training
   ##---------------------------------------

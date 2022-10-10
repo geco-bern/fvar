@@ -1,7 +1,7 @@
 library(tidyverse)
 library(ingestr)
 
-load("~/Downloads/plot_allsites_raw.RData")
+load("data/plot_allsites_raw.RData")
 
 all_sites <- plot_allsites_raw$name_site %>% 
   unique()
@@ -106,5 +106,6 @@ df_agg %>%
   ylim(0, 1.2) +
   geom_hline(yintercept = 1.0, linetype = "dotted") +
   theme_classic() +
-  labs(title = "All sites", x = "CWD (mm)", y = "fET")
+  labs(title = "All sites", x = "CWD (mm)", y = "Fractional reduction in ET", color = expression("Diagnosed" ~ italic("S")[0]))
 
+ggsave("fig/plot_fvar_cwd.pdf", width = 6, height = 5)
